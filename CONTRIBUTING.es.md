@@ -16,6 +16,7 @@ dependencias en tiempo de ejecución**; por favor, mantenlo así.
 | `hooks/hooks.json` | Los hooks de Claude Code |
 | `commands/*.md` | Los comandos `/langstats:*` |
 | `tests/` | Tests con pytest |
+| `tools/release.py` | Prepara una versión (ver [Publicar una versión](#publicar-una-versión)) |
 
 ## Desarrollo
 
@@ -59,14 +60,21 @@ Si una asociación es una preferencia personal y no una corrección, usa el ajus
 - Mantén estable el formato de la salida del README.
 - Un tema por pull request, con tests.
 - Actualiza `CHANGELOG.md` en *Unreleased*.
+- Actualiza la documentación en **los dos idiomas**: `README.md` y `README.es.md`.
 
 ## Publicar una versión
 
-Claude Code solo ofrece una actualización cuando cambia el **número de
-versión**, así que cada versión nueva debe subirlo en
-`.claude-plugin/plugin.json`, `.claude-plugin/marketplace.json`,
-`scripts/langstats.py` (`__version__`) y `pyproject.toml` (`tests/test_repo.py`
-comprueba que coincidan), pasar *Unreleased* a la nueva versión en
-`CHANGELOG.md` y crear la etiqueta (`vX.Y.Z`). Los usuarios ejecutan después
-`claude plugin update langstats@codecruz`.
-- Actualiza la documentación en **los dos idiomas**: `README.md` y `README.es.md`.
+Claude Code solo actualiza el plugin cuando cambia su **número de versión**, así
+que un push sin versión nueva nunca llega a los usuarios. Para publicar:
+
+1. Describe los cambios en *Unreleased* de `CHANGELOG.md`.
+2. Ejecuta `python3 tools/release.py X.Y.Z`. Pone la versión en
+   `.claude-plugin/plugin.json`, `.claude-plugin/marketplace.json`,
+   `scripts/langstats.py` y `pyproject.toml`, y pasa *Unreleased* a la nueva
+   versión en `CHANGELOG.md`.
+3. Haz commit (`release: X.Y.Z`) y push a `main`.
+
+Cuando el CI pasa, el workflow Release etiqueta el commit como `vX.Y.Z` y publica
+una release en GitHub con su sección del changelog. Quien tenga la
+actualización automática activada recibe la versión nueva en su siguiente
+sesión; el resto ejecuta `claude plugin update langstats@codecruz`.

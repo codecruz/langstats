@@ -6,6 +6,10 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+- `tools/release.py` prepares a release, and a Release workflow tags it and publishes
+  the GitHub release once CI passes on `main`.
+
 ## [0.4.0] - 2026-11-07
 
 ### Changed

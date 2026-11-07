@@ -16,6 +16,7 @@ dependencies**; please keep it that way.
 | `hooks/hooks.json` | The Claude Code hooks |
 | `commands/*.md` | The `/langstats:*` slash commands |
 | `tests/` | pytest suite |
+| `tools/release.py` | Prepares a release (see [Releasing](#releasing)) |
 
 ## Development
 
@@ -59,13 +60,21 @@ If a mapping is a personal preference rather than a fix, use the
 - Keep the README output format stable.
 - One topic per pull request, with tests.
 - Update `CHANGELOG.md` under *Unreleased*.
+- Update the documentation in **both languages**: `README.md` and `README.es.md`.
 
 ## Releasing
 
-Claude Code only offers an update when the **version number** changes, so every
-release must bump it in `.claude-plugin/plugin.json`,
-`.claude-plugin/marketplace.json`, `scripts/langstats.py` (`__version__`) and
-`pyproject.toml` (`tests/test_repo.py` checks they match), move *Unreleased* to
-the new version in `CHANGELOG.md`, and tag it (`vX.Y.Z`). Users then run
+Claude Code only updates the plugin when its **version number** changes, so a
+push without a new version never reaches users. To release:
+
+1. Describe the changes under *Unreleased* in `CHANGELOG.md`.
+2. Run `python3 tools/release.py X.Y.Z`. It sets the version in
+   `.claude-plugin/plugin.json`, `.claude-plugin/marketplace.json`,
+   `scripts/langstats.py` and `pyproject.toml`, and moves *Unreleased* to the
+   new version in `CHANGELOG.md`.
+3. Commit (`release: X.Y.Z`) and push to `main`.
+
+When CI passes, the Release workflow tags the commit `vX.Y.Z` and publishes a
+GitHub release with its changelog section. Users with auto-update on get the
+new version in their next session; the rest run
 `claude plugin update langstats@codecruz`.
-- Update the documentation in **both languages**: `README.md` and `README.es.md`.
