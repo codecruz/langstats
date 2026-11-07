@@ -374,7 +374,11 @@ def test_shared_file_is_anonymous(home, write_config, fake_github):
     data = json.loads(text)
     assert set(data) == {"v", "days"}
     assert list(data["days"].values()) == [{"Python": 60}]
-    for secret in ("secret-client", "abc", "session", "project", "machine", "host", os.environ.get("USER", "-")):
+    secrets = ["secret-client", "abc", "session", "project", "machine", "host"]
+    user = os.environ.get("USER") or os.environ.get("USERNAME")  # USERNAME on Windows
+    if user:
+        secrets.append(user)
+    for secret in secrets:
         assert secret not in text
 
 
