@@ -59,4 +59,13 @@ If a mapping is a personal preference rather than a fix, use the
 - Keep the README output format stable.
 - One topic per pull request, with tests.
 - Update `CHANGELOG.md` under *Unreleased*.
+
+## Releasing
+
+Claude Code only offers an update when the **version number** changes, so every
+release must bump it in `.claude-plugin/plugin.json`,
+`.claude-plugin/marketplace.json`, `scripts/langstats.py` (`__version__`) and
+`pyproject.toml` (`tests/test_repo.py` checks they match), move *Unreleased* to
+the new version in `CHANGELOG.md`, and tag it (`vX.Y.Z`). Users then run
+`claude plugin update langstats@codecruz`.
 - Update the documentation in **both languages**: `README.md` and `README.es.md`.

@@ -59,4 +59,14 @@ Si una asociación es una preferencia personal y no una corrección, usa el ajus
 - Mantén estable el formato de la salida del README.
 - Un tema por pull request, con tests.
 - Actualiza `CHANGELOG.md` en *Unreleased*.
+
+## Publicar una versión
+
+Claude Code solo ofrece una actualización cuando cambia el **número de
+versión**, así que cada versión nueva debe subirlo en
+`.claude-plugin/plugin.json`, `.claude-plugin/marketplace.json`,
+`scripts/langstats.py` (`__version__`) y `pyproject.toml` (`tests/test_repo.py`
+comprueba que coincidan), pasar *Unreleased* a la nueva versión en
+`CHANGELOG.md` y crear la etiqueta (`vX.Y.Z`). Los usuarios ejecutan después
+`claude plugin update langstats@codecruz`.
 - Actualiza la documentación en **los dos idiomas**: `README.md` y `README.es.md`.

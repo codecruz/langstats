@@ -28,7 +28,9 @@ def test_versions_match():
 
     plugin = json.loads((ROOT / ".claude-plugin" / "plugin.json").read_text(encoding="utf-8"))
     market = json.loads((ROOT / ".claude-plugin" / "marketplace.json").read_text(encoding="utf-8"))
+    pyproject = (ROOT / "pyproject.toml").read_text(encoding="utf-8")
     assert plugin["version"] == langstats.__version__ == market["plugins"][0]["version"]
+    assert 'version = "%s"' % plugin["version"] in pyproject
     assert market["plugins"][0]["name"] == plugin["name"] == "langstats"
 
 

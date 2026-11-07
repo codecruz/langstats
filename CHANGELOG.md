@@ -6,6 +6,8 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-11-07
+
 ### Added
 - Optional `share_data` (off by default, so only the percentages block is ever
   uploaded): several computers add up instead of overwriting each other. The repository
@@ -69,5 +71,6 @@ First public release, renamed from the personal prototype `langtime` (v0.1.0).
 - `~/.claude/langtime/` is copied to `~/.claude/langstats/` once, on first run,
   when the destination does not exist yet.
 
-[Unreleased]: https://github.com/codecruz/langstats/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/codecruz/langstats/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/codecruz/langstats/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/codecruz/langstats/releases/tag/v0.2.0
