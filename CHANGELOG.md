@@ -6,6 +6,11 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed
+- The default `section` is now `langstats` (markers `<!--START_SECTION:langstats-->` /
+  `<!--END_SECTION:langstats-->`). If your README still has markers with another name,
+  rename them or keep the old name with `config set section <name>`.
+
 ## [0.3.0] - 2026-11-07
 
 ### Added
