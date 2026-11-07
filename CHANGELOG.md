@@ -6,6 +6,14 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed
+- A publish with no data no longer resets the auto-publish interval.
+
+### Documentation
+- README and CONTRIBUTING rewritten for clarity and available in English and
+  Spanish (`README.es.md`, `CONTRIBUTING.es.md`), with quick start,
+  troubleshooting and uninstall sections.
+
 ## [0.2.0] - 2026-11-07
 
 First public release, renamed from the personal prototype `langtime` (v0.1.0).
