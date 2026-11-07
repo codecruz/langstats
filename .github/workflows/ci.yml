@@ -1,0 +1,64 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install ruff
+      - run: ruff check .
+      - run: ruff format --check .
+      - name: All JSON files parse
+        run: |
+          find . -name '*.json' -not -path './.git/*' -print0 \
+            | xargs -0 -n1 python -c 'import json, sys; json.load(open(sys.argv[1], encoding="utf-8")); print("ok", sys.argv[1])'
+      - name: No personal defaults in code (A12)
+        run: |
+          if grep -rni codecruz scripts hooks commands; then
+            echo "::error::'codecruz' must only appear in plugin.json, marketplace.json and docs"
+            exit 1
+          fi
+
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        python: ["3.9", "3.12"]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - run: pip install pytest
+      - run: python -m pytest -q
+
+      - name: Hook smoke test through the sh launcher (A10)
+        shell: bash
+        run: |
+          command -v python3 || echo "python3 is not on PATH (expected on Windows)"
+          export LANGSTATS_HOME="$RUNNER_TEMP/langstats-sh"
+          echo '{"session_id":"ci","cwd":".","tool_name":"Edit","tool_input":{"file_path":"src/app.py"}}' \
+            | sh scripts/run hook
+          cat "$LANGSTATS_HOME"/heartbeats/*.jsonl
+          grep -q '"lang":"Python"' "$LANGSTATS_HOME"/heartbeats/*.jsonl
+          sh scripts/run stats
+
+      - name: Hook smoke test through run.cmd (A10)
+        if: runner.os == 'Windows'
+        shell: cmd
+        run: |
+          set "LANGSTATS_HOME=%RUNNER_TEMP%\langstats-cmd"
+          echo {"session_id":"ci","cwd":".","tool_name":"Write","tool_input":{"file_path":"src\\app.ts"}} | scripts\run.cmd hook
+          type "%LANGSTATS_HOME%\heartbeats\*.jsonl"
+          findstr /c:"\"lang\":\"TypeScript\"" "%LANGSTATS_HOME%\heartbeats\*.jsonl"
