@@ -20,6 +20,8 @@ Other                           ███▒░░░░░░░░░░░░
 > It does not measure the time you spend typing in your own editor.
 
 - Works on **macOS, Linux and Windows**.
+- **Your own icons**: bars with flowers 🌸, rockets 🚀, hearts 💖, moons 🌕 or any
+  symbols you like (see [Bar style](#bar-style)).
 - **Does not slow Claude down**: the hook runs in the background (see [Performance](#performance)).
 - **GitHub is optional**: connected, it updates your README by itself; not
   connected, it gives you the block to paste by hand.
@@ -212,15 +214,97 @@ The symbols of the bars are up to you. See every style with a preview:
   ascii     #########------   - = #
 ```
 
-Choose one by name:
+Choose one by name. This is how each one looks in your README (the emoji
+styles with `bar_length 15`, see the note below):
+
+```text
+/langstats:style bars
+```
+
+```txt
+Python      ███████████▒░░░░░░░░░░░░░   45.00 %
+TypeScript  ███████▓░░░░░░░░░░░░░░░░░   30.00 %
+Go          ███▓░░░░░░░░░░░░░░░░░░░░░   15.00 %
+```
 
 ```text
 /langstats:style flowers
 ```
 
 ```txt
-Python                          🌸🌸🌸🌸🌸🌸🌸🌸🌸🌸🌸🌱·············   45.00 %
-TypeScript                      🌸🌸🌸🌸🌸🌸🌸🌱·················   30.00 %
+Python      🌸🌸🌸🌸🌸🌸🌸········   45.00 %
+TypeScript  🌸🌸🌸🌸🌱··········   30.00 %
+Go          🌸🌸🌱············   15.00 %
+```
+
+```text
+/langstats:style rocket
+```
+
+```txt
+Python      💮💮💮💮💮💮💮········   45.00 %
+TypeScript  💮💮💮💮🚀··········   30.00 %
+Go          💮💮🚀············   15.00 %
+```
+
+```text
+/langstats:style hearts
+```
+
+```txt
+Python      💖💖💖💖💖💖💖········   45.00 %
+TypeScript  💖💖💖💖💗··········   30.00 %
+Go          💖💖💗············   15.00 %
+```
+
+```text
+/langstats:style moon
+```
+
+```txt
+Python      🌕🌕🌕🌕🌕🌕🌕🌑🌑🌑🌑🌑🌑🌑🌑   45.00 %
+TypeScript  🌕🌕🌕🌕🌓🌑🌑🌑🌑🌑🌑🌑🌑🌑🌑   30.00 %
+Go          🌕🌕🌓🌑🌑🌑🌑🌑🌑🌑🌑🌑🌑🌑🌑   15.00 %
+```
+
+```text
+/langstats:style stars
+```
+
+```txt
+Python      ★★★★★★★★★★★☆☆☆☆☆☆☆☆☆☆☆☆☆☆   45.00 %
+TypeScript  ★★★★★★★★☆☆☆☆☆☆☆☆☆☆☆☆☆☆☆☆☆   30.00 %
+Go          ★★★★☆☆☆☆☆☆☆☆☆☆☆☆☆☆☆☆☆☆☆☆☆   15.00 %
+```
+
+```text
+/langstats:style dots
+```
+
+```txt
+Python      ●●●●●●●●●●●◐○○○○○○○○○○○○○   45.00 %
+TypeScript  ●●●●●●●◐○○○○○○○○○○○○○○○○○   30.00 %
+Go          ●●●●○○○○○○○○○○○○○○○○○○○○○   15.00 %
+```
+
+```text
+/langstats:style squares
+```
+
+```txt
+Python      🟩🟩🟩🟩🟩🟩🟩⬜⬜⬜⬜⬜⬜⬜⬜   45.00 %
+TypeScript  🟩🟩🟩🟩🟩⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜   30.00 %
+Go          🟩🟩⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜   15.00 %
+```
+
+```text
+/langstats:style ascii
+```
+
+```txt
+Python      ###########=-------------   45.00 %
+TypeScript  #######=-----------------   30.00 %
+Go          ####---------------------   15.00 %
 ```
 
 Or use your own symbols, **from empty to full**. Two symbols are enough
@@ -231,6 +315,48 @@ filled step:
 /langstats:style "·🌱🌸"       empty · , half 🌱 , full 🌸
 /langstats:style "-#"          empty - , full #
 /langstats:style "· ❤️ 💖"     separated by spaces
+```
+
+A few examples:
+
+```text
+/langstats:style "·🌱🌸"
+```
+
+```txt
+Python      🌸🌸🌸🌸🌸🌸🌸········   45.00 %
+TypeScript  🌸🌸🌸🌸🌱··········   30.00 %
+Go          🌸🌸🌱············   15.00 %
+```
+
+```text
+/langstats:style "▱▰"
+```
+
+```txt
+Python      ▰▰▰▰▰▰▰▰▰▰▰▱▱▱▱▱▱▱▱▱▱▱▱▱▱   45.00 %
+TypeScript  ▰▰▰▰▰▰▰▰▱▱▱▱▱▱▱▱▱▱▱▱▱▱▱▱▱   30.00 %
+Go          ▰▰▰▰▱▱▱▱▱▱▱▱▱▱▱▱▱▱▱▱▱▱▱▱▱   15.00 %
+```
+
+```text
+/langstats:style "⚪🔵"
+```
+
+```txt
+Python      🔵🔵🔵🔵🔵🔵🔵⚪⚪⚪⚪⚪⚪⚪⚪   45.00 %
+TypeScript  🔵🔵🔵🔵🔵⚪⚪⚪⚪⚪⚪⚪⚪⚪⚪   30.00 %
+Go          🔵🔵⚪⚪⚪⚪⚪⚪⚪⚪⚪⚪⚪⚪⚪   15.00 %
+```
+
+```text
+/langstats:style "· ❤️ 💖"
+```
+
+```txt
+Python      💖💖💖💖💖💖💖········   45.00 %
+TypeScript  💖💖💖💖❤️··········   30.00 %
+Go          💖💖❤️············   15.00 %
 ```
 
 Separate the symbols with spaces when an emoji is made of several characters

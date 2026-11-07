@@ -21,6 +21,8 @@ Other                           ███▒░░░░░░░░░░░░
 > No mide el tiempo que pasas tú escribiendo en tu propio editor.
 
 - Funciona en **macOS, Linux y Windows**.
+- **Tus propios iconos**: barras con flores 🌸, cohetes 🚀, corazones 💖, lunas 🌕 o
+  los símbolos que quieras (ver [Estilo de las barras](#estilo-de-las-barras)).
 - **No ralentiza a Claude**: el hook se ejecuta en segundo plano (ver [Rendimiento](#rendimiento)).
 - **GitHub es opcional**: si está conectado, actualiza tu README solo; si no,
   te da el bloque para pegarlo a mano.
@@ -214,15 +216,97 @@ previa:
   ascii     #########------   - = #
 ```
 
-Elige uno por su nombre:
+Elige uno por su nombre. Así se ve cada uno en tu README (los estilos con
+emojis, con `bar_length 15`; mira la nota más abajo):
+
+```text
+/langstats:style bars
+```
+
+```txt
+Python      ███████████▒░░░░░░░░░░░░░   45.00 %
+TypeScript  ███████▓░░░░░░░░░░░░░░░░░   30.00 %
+Go          ███▓░░░░░░░░░░░░░░░░░░░░░   15.00 %
+```
 
 ```text
 /langstats:style flowers
 ```
 
 ```txt
-Python                          🌸🌸🌸🌸🌸🌸🌸🌸🌸🌸🌸🌱·············   45.00 %
-TypeScript                      🌸🌸🌸🌸🌸🌸🌸🌱·················   30.00 %
+Python      🌸🌸🌸🌸🌸🌸🌸········   45.00 %
+TypeScript  🌸🌸🌸🌸🌱··········   30.00 %
+Go          🌸🌸🌱············   15.00 %
+```
+
+```text
+/langstats:style rocket
+```
+
+```txt
+Python      💮💮💮💮💮💮💮········   45.00 %
+TypeScript  💮💮💮💮🚀··········   30.00 %
+Go          💮💮🚀············   15.00 %
+```
+
+```text
+/langstats:style hearts
+```
+
+```txt
+Python      💖💖💖💖💖💖💖········   45.00 %
+TypeScript  💖💖💖💖💗··········   30.00 %
+Go          💖💖💗············   15.00 %
+```
+
+```text
+/langstats:style moon
+```
+
+```txt
+Python      🌕🌕🌕🌕🌕🌕🌕🌑🌑🌑🌑🌑🌑🌑🌑   45.00 %
+TypeScript  🌕🌕🌕🌕🌓🌑🌑🌑🌑🌑🌑🌑🌑🌑🌑   30.00 %
+Go          🌕🌕🌓🌑🌑🌑🌑🌑🌑🌑🌑🌑🌑🌑🌑   15.00 %
+```
+
+```text
+/langstats:style stars
+```
+
+```txt
+Python      ★★★★★★★★★★★☆☆☆☆☆☆☆☆☆☆☆☆☆☆   45.00 %
+TypeScript  ★★★★★★★★☆☆☆☆☆☆☆☆☆☆☆☆☆☆☆☆☆   30.00 %
+Go          ★★★★☆☆☆☆☆☆☆☆☆☆☆☆☆☆☆☆☆☆☆☆☆   15.00 %
+```
+
+```text
+/langstats:style dots
+```
+
+```txt
+Python      ●●●●●●●●●●●◐○○○○○○○○○○○○○   45.00 %
+TypeScript  ●●●●●●●◐○○○○○○○○○○○○○○○○○   30.00 %
+Go          ●●●●○○○○○○○○○○○○○○○○○○○○○   15.00 %
+```
+
+```text
+/langstats:style squares
+```
+
+```txt
+Python      🟩🟩🟩🟩🟩🟩🟩⬜⬜⬜⬜⬜⬜⬜⬜   45.00 %
+TypeScript  🟩🟩🟩🟩🟩⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜   30.00 %
+Go          🟩🟩⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜   15.00 %
+```
+
+```text
+/langstats:style ascii
+```
+
+```txt
+Python      ###########=-------------   45.00 %
+TypeScript  #######=-----------------   30.00 %
+Go          ####---------------------   15.00 %
 ```
 
 O usa tus propios símbolos, **de vacío a lleno**. Con dos símbolos basta (vacío
@@ -232,6 +316,48 @@ y lleno); con tres o más, los del medio marcan un paso lleno a medias:
 /langstats:style "·🌱🌸"       vacío · , medio 🌱 , lleno 🌸
 /langstats:style "-#"          vacío - , lleno #
 /langstats:style "· ❤️ 💖"     separados por espacios
+```
+
+Algunos ejemplos:
+
+```text
+/langstats:style "·🌱🌸"
+```
+
+```txt
+Python      🌸🌸🌸🌸🌸🌸🌸········   45.00 %
+TypeScript  🌸🌸🌸🌸🌱··········   30.00 %
+Go          🌸🌸🌱············   15.00 %
+```
+
+```text
+/langstats:style "▱▰"
+```
+
+```txt
+Python      ▰▰▰▰▰▰▰▰▰▰▰▱▱▱▱▱▱▱▱▱▱▱▱▱▱   45.00 %
+TypeScript  ▰▰▰▰▰▰▰▰▱▱▱▱▱▱▱▱▱▱▱▱▱▱▱▱▱   30.00 %
+Go          ▰▰▰▰▱▱▱▱▱▱▱▱▱▱▱▱▱▱▱▱▱▱▱▱▱   15.00 %
+```
+
+```text
+/langstats:style "⚪🔵"
+```
+
+```txt
+Python      🔵🔵🔵🔵🔵🔵🔵⚪⚪⚪⚪⚪⚪⚪⚪   45.00 %
+TypeScript  🔵🔵🔵🔵🔵⚪⚪⚪⚪⚪⚪⚪⚪⚪⚪   30.00 %
+Go          🔵🔵⚪⚪⚪⚪⚪⚪⚪⚪⚪⚪⚪⚪⚪   15.00 %
+```
+
+```text
+/langstats:style "· ❤️ 💖"
+```
+
+```txt
+Python      💖💖💖💖💖💖💖········   45.00 %
+TypeScript  💖💖💖💖❤️··········   30.00 %
+Go          💖💖❤️············   15.00 %
 ```
 
 Separa los símbolos con espacios cuando un emoji esté formado por varios
