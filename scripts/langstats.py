@@ -50,7 +50,7 @@ if TYPE_CHECKING:  # pragma: no cover
 # argparse, base64, shutil and subprocess are imported lazily where needed so
 # the PostToolUse hook stays fast.
 
-__version__ = "0.3.0"
+__version__ = "0.4.0"
 
 SCHEMA_VERSION = 1
 SCRIPT_PATH = Path(__file__).resolve()

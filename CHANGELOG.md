@@ -6,10 +6,13 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-11-07
+
 ### Changed
 - The default `section` is now `langstats` (markers `<!--START_SECTION:langstats-->` /
   `<!--END_SECTION:langstats-->`). If your README still has markers with another name,
   rename them or keep the old name with `config set section <name>`.
+- The README shows an example of every bar style and of custom icons.
 
 ## [0.3.0] - 2026-11-07
 
@@ -76,6 +79,7 @@ First public release, renamed from the personal prototype `langtime` (v0.1.0).
 - `~/.claude/langtime/` is copied to `~/.claude/langstats/` once, on first run,
   when the destination does not exist yet.
 
-[Unreleased]: https://github.com/codecruz/langstats/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/codecruz/langstats/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/codecruz/langstats/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/codecruz/langstats/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/codecruz/langstats/releases/tag/v0.2.0

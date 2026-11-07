@@ -12,7 +12,7 @@
       "name": "langstats",
       "source": "./",
       "description": "Language stats for Claude Code, published to your GitHub profile README.",
-      "version": "0.3.0",
+      "version": "0.4.0",
       "category": "productivity"
     }
   ]
