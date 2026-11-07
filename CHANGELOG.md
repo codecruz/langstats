@@ -11,8 +11,14 @@ and the project uses [Semantic Versioning](https://semver.org/).
 First public release, renamed from the personal prototype `langtime` (v0.1.0).
 
 ### Added
-- `/langstats:setup`: guided configuration (mode, repo, section, auto-publish) with a
-  `doctor` check and an optional insertion of the section markers.
+- `mode: auto` (default): publishes through a local clone if configured, through
+  the GitHub API when `gh` is logged in (to the profile README `<login>/<login>`
+  by default), and otherwise falls back to manual.
+- Manual publishing for users without a GitHub connection: `/langstats:snippet`
+  (and `publish` while not connected) prints the block with its markers, copies it
+  to the clipboard when possible and saves it to `readme-snippet.md`.
+- `/langstats:setup`: guided configuration that detects the GitHub connection,
+  with a `doctor` check and an optional insertion of the section markers.
 - `langstats.py config show|set|unset|path` so the configuration is never edited by hand.
 - `gh` mode: update the README through the GitHub API, no local clone needed.
 - `scripts/languages.json`: language maps can be extended by pull request; new
@@ -22,6 +28,12 @@ First public release, renamed from the personal prototype `langtime` (v0.1.0).
 - Cross-platform launchers `scripts/run` (sh) and `scripts/run.cmd` that try
   `python3`, `python` and `py -3`.
 - Test suite (pytest), CI on Linux, macOS and Windows with Python 3.9 and 3.12, ruff.
+
+### Performance
+- The `PostToolUse` and `SessionStart` hooks run async, so they never block Claude.
+- The launchers cache the Python interpreter; `scripts/cli.py` loads the code from
+  cached bytecode; the hook path skips argparse, subprocess and typing.
+  About 25 ms per call, down from about 60 ms.
 
 ### Changed
 - Renamed `langtime` → `langstats` everywhere; `LANGSTATS_HOME` replaces `LANGTIME_HOME`.

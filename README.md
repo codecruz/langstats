@@ -24,8 +24,10 @@ Other                           ███▒░░░░░░░░░░░░
 /plugin install langstats@codecruz
 ```
 
-Requirements: Python 3.9+ (`python3`, `python` or `py -3`) and either `git` or the
-[`gh`](https://cli.github.com/) CLI. Works on macOS, Linux and Windows.
+Requirements: Python 3.9+ (`python3`, `python` or `py -3`). Works on macOS,
+Linux and Windows. The [GitHub CLI](https://cli.github.com/) is optional: with
+it, langstats updates your README by itself; without it, you get the block to
+paste by hand.
 
 Tracking starts right away. Then run:
 
@@ -33,27 +35,56 @@ Tracking starts right away. Then run:
 /langstats:setup
 ```
 
+## Publishing: automatic or by hand
+
+The default `mode` is `auto`, which picks the first option that applies:
+
+1. **A local clone** (`readme_repo_path` set): commit and push from it with `git`.
+2. **GitHub connected** (`gh auth login` done): update the section of your
+   profile README, `github.com/<login>/<login>`, through the GitHub API, or the
+   repository in `readme_repo`. No clone needed.
+3. **Not connected**: nothing is sent anywhere. `/langstats:publish` and
+   `/langstats:snippet` print the block with its markers, copy it to the
+   clipboard when possible and save it to `~/.claude/langstats/readme-snippet.md`,
+   so you can paste it into your README yourself:
+
+````markdown
+<!--START_SECTION:langstats-->
+
+```txt
+TypeScript                      ██████░░░░░░░░░░░░░░░░░░░   24.10 %
+...
+```
+
+<!--END_SECTION:langstats-->
+````
+
+Paste it where you want the stats, replacing the previous block if there is one.
+Once you connect GitHub, the next publish updates exactly that section and
+nothing else in the README.
+
+Force one behaviour with `mode`: `git`, `gh` or `manual` (never contacts GitHub).
+
 ## Setup
 
-`/langstats:setup` asks a few questions and saves the answers with
-`langstats.py config set`:
+`/langstats:setup` checks whether GitHub is connected and walks you through it:
 
-1. **Mode**: `git` (commit and push from a local clone of your profile repo) or
-   `gh` (update the file through the GitHub API, no clone).
-2. **Target**: the clone path (`readme_repo_path`) or `owner/repo` (`readme_repo`).
-3. **Section name**: the README block to rewrite, between
-   `<!--START_SECTION:langstats-->` and `<!--END_SECTION:langstats-->`.
-4. **Auto-publish** on session end.
+- **Connected**: confirms the repository (your profile README by default), the
+  section name, and whether to auto-publish when a session ends. If the markers
+  are missing, it offers to append them to the end of the README.
+- **Not connected**: explains how to connect (`gh auth login`), use a local
+  clone, or stay in manual mode with `/langstats:snippet`.
 
-It then checks `git` or `gh auth status`, the repo and the markers, and offers to
-append the markers to the end of your README if they are missing.
+Answers are saved with `langstats.py config set`; `config.json` is never edited
+by hand.
 
 ## Commands
 
 | Command | What it does |
 | --- | --- |
 | `/langstats:stats [--days N] [--project NAME]` | Language table with time per language and per project. `--days 0` = all time. |
-| `/langstats:publish [--dry-run]` | Rewrite the README section. With `--dry-run`, print the block and change nothing. |
+| `/langstats:publish [--dry-run]` | Update the README section, or print the block to paste when GitHub is not connected. With `--dry-run`, show the block and the target and change nothing. |
+| `/langstats:snippet` | Print the block with its markers to paste by hand, and copy it to the clipboard when possible. |
 | `/langstats:setup` | Guided configuration. |
 
 The script can also be used directly:
@@ -61,6 +92,7 @@ The script can also be used directly:
 ```sh
 scripts/run stats --days 30
 scripts/run publish --dry-run
+scripts/run snippet --copy
 scripts/run config show
 scripts/run config set top_n 5
 scripts/run doctor
@@ -76,9 +108,9 @@ the default is used.
 
 | Key | Default | Description |
 | --- | --- | --- |
-| `mode` | `git` | `git` = local clone, `gh` = GitHub API through `gh` |
-| `readme_repo_path` | `null` | Local clone of the profile repo (mode `git`) |
-| `readme_repo` | `null` | `owner/repo` (mode `gh`) |
+| `mode` | `auto` | `auto`, `git` (local clone), `gh` (GitHub API through `gh`) or `manual` (print the block to paste) |
+| `readme_repo_path` | `null` | Local clone of the profile repo |
+| `readme_repo` | `null` | `owner/repo`; with `gh` and no value, your profile repo `<login>/<login>` |
 | `readme_file` | `README.md` | File inside the repo |
 | `section` | `langstats` | Marker name |
 | `range_days` | `7` | Days included, today counts as one; `0` = all |
@@ -104,6 +136,20 @@ All heartbeats in the range go on a single timeline, so parallel sessions are
 never counted twice. The gap between two consecutive heartbeats is added to the
 language of the first one if it is no longer than `timeout_minutes`.
 
+## Performance
+
+langstats is built to be invisible:
+
+- The `PostToolUse` hook is **async**: Claude Code does not wait for it.
+- Each call is one short Python process (about 25 ms on a laptop): the launcher
+  caches the interpreter it found in `~/.claude/langstats/.python`, the code
+  is loaded from cached bytecode, and the hook path skips argparse, subprocess
+  and every network or git call.
+- Only `Read`, `Edit`, `Write`, `MultiEdit` and `NotebookEdit` trigger it; bash
+  commands, searches and everything else are not hooked.
+- Publishing never runs inside a hook. `SessionEnd` only checks a timestamp and,
+  when auto-publish is due, starts a detached background process.
+
 ## Scheduled publishing (cron)
 
 Instead of `auto_publish`, you can publish on a schedule:
@@ -121,8 +167,9 @@ directory. On Windows, use Task Scheduler with `scripts\run.cmd publish`.
   one file per day.
 - Heartbeats store a timestamp, the language, the project folder name, the tool
   and a short session id. **File paths and file contents are never stored.**
-- Nothing is sent anywhere except the rendered block, and only to the repository
-  you configure, when you publish.
+- Nothing is sent anywhere except the rendered block, and only to your
+  repository, when you publish. In `manual` mode, or while GitHub is not
+  connected, nothing leaves your machine.
 
 ## Upgrading from langtime 0.1.0
 

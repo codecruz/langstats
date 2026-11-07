@@ -11,6 +11,12 @@ sys.path.insert(0, str(ROOT / "scripts"))
 import langstats  # noqa: E402
 
 
+@pytest.fixture(autouse=True)
+def no_github(monkeypatch):
+    """Tests never talk to the real gh: by default GitHub is not connected."""
+    monkeypatch.setattr(langstats, "gh_login", lambda: None)
+
+
 @pytest.fixture
 def home(tmp_path, monkeypatch):
     """An isolated LANGSTATS_HOME, with no legacy langtime directory."""

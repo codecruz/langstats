@@ -12,6 +12,7 @@ from conftest import heartbeat_lines
 def test_defaults_have_no_personal_values():
     assert langstats.DEFAULTS["readme_repo_path"] is None
     assert langstats.DEFAULTS["readme_repo"] is None
+    assert langstats.DEFAULTS["mode"] == "auto"
 
 
 def test_missing_config_gives_defaults(home):
@@ -57,6 +58,7 @@ def test_unknown_key_warns(home, write_config, capsys):
     "key, raw, expected",
     [
         ("mode", "gh", "gh"),
+        ("mode", "manual", "manual"),
         ("readme_repo", "me/me", "me/me"),
         ("readme_repo", "null", None),
         ("readme_repo_path", "~/code/me", "~/code/me"),
@@ -124,9 +126,9 @@ def test_a11_migrates_legacy_data_once(tmp_path, monkeypatch, run_hook):
     assert not (home / "heartbeats" / "2026-11-02.jsonl").exists()
 
 
-def test_a11_no_migration_when_destination_exists(tmp_path, monkeypatch):
+def test_a11_no_migration_when_destination_has_data(tmp_path, monkeypatch):
     home = tmp_path / "langstats"
-    home.mkdir()
+    (home / "heartbeats").mkdir(parents=True)
     legacy = tmp_path / "langtime"
     legacy.mkdir()
     (legacy / "config.json").write_text("{}", encoding="utf-8")
@@ -161,3 +163,16 @@ def test_read_heartbeats_range(home):
     assert langs(7) == ["2026-11-01", "2026-11-07"]
     assert langs(1) == ["2026-11-07"]
     assert langs(0) == ["2026-10-31", "2026-11-01", "2026-11-07"]
+
+
+def test_a11_migrates_into_home_that_only_holds_the_launcher_cache(tmp_path, monkeypatch):
+    home = tmp_path / "langstats"
+    home.mkdir()
+    (home / ".python").write_text("python3\n", encoding="utf-8")
+    legacy = tmp_path / "langtime"
+    legacy.mkdir()
+    (legacy / "config.json").write_text(json.dumps({"top_n": 3}), encoding="utf-8")
+    monkeypatch.setenv("LANGSTATS_HOME", str(home))
+    monkeypatch.setenv("LANGTIME_HOME", str(legacy))
+    assert langstats.migrate_legacy(home) is True
+    assert langstats.load_config(home)["top_n"] == 3

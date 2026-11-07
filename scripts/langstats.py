@@ -7,13 +7,17 @@ Subcommands:
     session-start   SessionStart hook: data migration and retention cleanup
     session-end     SessionEnd hook: launches a detached auto-publish when due
     stats           print the language table for the configured range
-    publish         rewrite the README section (git clone or GitHub API via gh)
+    publish         rewrite the README section (git clone, GitHub API via gh, or
+                    print the block to paste by hand when GitHub is not connected)
+    snippet         print the README block with its markers, ready to paste
     config          show / set / unset / path
     doctor          check that the configuration is ready to publish
     insert-markers  append the section markers to the README
 
 Runtime: Python 3.9+, standard library only. Hook subcommands never fail the
-session: any error goes to stderr and the process exits with code 0.
+session: any error goes to stderr and the process exits with code 0. The hook
+path imports as little as possible (no argparse, no subprocess) because it runs
+after every Read/Edit.
 """
 
 from __future__ import annotations
@@ -29,18 +33,22 @@ if sys.version_info < MIN_PYTHON:  # pragma: no cover - checked before anything 
     )
     sys.exit(0)
 
-import argparse  # noqa: E402
-import base64  # noqa: E402
 import datetime as dt  # noqa: E402
 import fnmatch  # noqa: E402
 import json  # noqa: E402
 import os  # noqa: E402
 import re  # noqa: E402
-import shutil  # noqa: E402
-import subprocess  # noqa: E402
 import time  # noqa: E402
 from pathlib import Path  # noqa: E402
-from typing import Any, Callable  # noqa: E402
+
+TYPE_CHECKING = False  # avoids importing typing on the hook path
+
+if TYPE_CHECKING:  # pragma: no cover
+    import argparse
+    from typing import Any, Callable
+
+# argparse, base64, shutil and subprocess are imported lazily where needed so
+# the PostToolUse hook stays fast.
 
 __version__ = "0.2.0"
 
@@ -52,10 +60,12 @@ LANGUAGES_FILE = SCRIPT_DIR / "languages.json"
 TRACKED_TOOLS = ("Edit", "Write", "MultiEdit", "NotebookEdit", "Read")
 OTHER = "Other"
 SETUP_HINT = "Run /langstats:setup to configure it."
+MODES = ("auto", "git", "gh", "manual")
+SNIPPET_FILE = "readme-snippet.md"
 HEARTBEAT_FILE_RE = re.compile(r"^(\d{4}-\d{2}-\d{2})\.jsonl$")
 
 DEFAULTS: dict[str, Any] = {
-    "mode": "git",
+    "mode": "auto",
     "readme_repo_path": None,
     "readme_repo": None,
     "readme_file": "README.md",
@@ -107,7 +117,7 @@ def _str_list(v: Any) -> bool:
 
 # key -> (kind, check, human readable rule). kind drives `config set` parsing.
 SCHEMA: dict[str, tuple[str, Callable[[Any], bool], str]] = {
-    "mode": ("str", lambda v: v in ("git", "gh"), '"git" or "gh"'),
+    "mode": ("str", lambda v: v in MODES, '"auto", "git", "gh" or "manual"'),
     "readme_repo_path": ("nstr", lambda v: v is None or _nonempty_str(v), "a path or null"),
     "readme_repo": (
         "nstr",
@@ -258,15 +268,19 @@ def write_user_config(home: Path, data: dict[str, Any]) -> None:
 
 def migrate_legacy(home: Path) -> bool:
     """Copy ~/.claude/langtime (v0.1.0) into the langstats home, once: only when
-    the destination does not exist yet."""
-    if home.exists():
+    the destination holds no data yet (no config, no heartbeats)."""
+    if (home / "heartbeats").exists() or (home / "config.json").exists():
+        return False
+    if (home / ".migrated-from-langtime").exists():
         return False
     legacy = legacy_home()
     if not legacy.is_dir():
         return False
+    import shutil
+
     try:
         home.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copytree(str(legacy), str(home))
+        shutil.copytree(str(legacy), str(home), dirs_exist_ok=True)
         (home / ".migrated-from-langtime").write_text(str(legacy) + "\n", encoding="utf-8")
     except OSError as exc:
         warn("could not migrate %s to %s: %s" % (legacy, home, exc))
@@ -652,12 +666,54 @@ def markers_snippet(section: str) -> str:
     return "%s\n%s\n" % (start, end)
 
 
+def snippet_text(section: str, block: str) -> str:
+    """The block with its markers, exactly as `publish` would write it."""
+    return replace_section(markers_snippet(section), section, block)
+
+
+def write_snippet(home: Path, cfg: dict[str, Any], block: str) -> str:
+    text = snippet_text(cfg["section"], block)
+    home.mkdir(parents=True, exist_ok=True)
+    (home / SNIPPET_FILE).write_text(text, encoding="utf-8")
+    return text
+
+
+def copy_to_clipboard(text: str) -> str | None:
+    """Copy with the platform's clipboard tool. Returns the tool used, or None."""
+    import shutil
+    import subprocess
+
+    if sys.platform == "darwin":
+        candidates = [["pbcopy"]]
+    elif os.name == "nt":
+        candidates = [["clip"]]
+    else:
+        candidates = [
+            ["wl-copy"],
+            ["xclip", "-selection", "clipboard"],
+            ["xsel", "--clipboard", "--input"],
+            ["clip.exe"],
+        ]
+    for cmd in candidates:
+        if shutil.which(cmd[0]) is None:
+            continue
+        data = ("\ufeff" + text).encode("utf-16-le") if cmd[0].startswith("clip") else text.encode("utf-8")
+        try:
+            subprocess.run(cmd, input=data, check=True, timeout=5, capture_output=True)
+            return cmd[0]
+        except (OSError, subprocess.SubprocessError):
+            continue
+    return None
+
+
 # --------------------------------------------------------------------------- #
 # Publishing
 # --------------------------------------------------------------------------- #
 
 
 def run(cmd: list[str], cwd: Path | None = None, input_text: str | None = None, check: bool = True):
+    import subprocess
+
     try:
         proc = subprocess.run(
             cmd,
@@ -684,10 +740,47 @@ def _git_repo(cfg: dict[str, Any]) -> Path:
     return repo
 
 
-def _gh_repo(cfg: dict[str, Any]) -> str:
-    if not cfg["readme_repo"]:
-        raise LangstatsError("readme_repo is not set (mode gh). " + SETUP_HINT)
-    return cfg["readme_repo"]
+def gh_login() -> str | None:
+    """The login of the account `gh` is connected to, or None (gh missing or
+    not logged in). Only called when publishing, never from a hook."""
+    import shutil
+
+    if shutil.which("gh") is None:
+        return None
+    try:
+        proc = run(["gh", "api", "user", "--jq", ".login"], check=False)
+    except LangstatsError:
+        return None
+    login = proc.stdout.strip()
+    return login if proc.returncode == 0 and re.fullmatch(r"[\w-]+", login) else None
+
+
+NO_GITHUB_HINT = (
+    "To publish automatically, install the GitHub CLI (https://cli.github.com) and run `gh auth login`, "
+    "then /langstats:setup. Meanwhile, /langstats:snippet gives you the block to paste by hand."
+)
+
+
+def resolve_target(cfg: dict[str, Any]) -> tuple[str, Any]:
+    """Decide how to publish: ("git", Path), ("gh", "owner/repo") or ("manual", None).
+
+    mode auto: a configured clone or repo wins; otherwise, when gh is logged in,
+    the user's profile README repository <login>/<login>; otherwise manual."""
+    mode = cfg["mode"]
+    if mode == "manual":
+        return "manual", None
+    if mode == "git":
+        return "git", _git_repo(cfg)
+    if mode == "auto" and cfg["readme_repo_path"]:
+        return "git", _git_repo(cfg)
+    if cfg["readme_repo"]:
+        return "gh", cfg["readme_repo"]
+    login = gh_login()
+    if login:
+        return "gh", "%s/%s" % (login, login)
+    if mode == "gh":
+        raise LangstatsError("gh is not installed or not logged in, and readme_repo is not set. " + NO_GITHUB_HINT)
+    return "manual", None
 
 
 def _has_upstream(repo: Path) -> bool:
@@ -696,13 +789,25 @@ def _has_upstream(repo: Path) -> bool:
 
 
 def _gh_get(repo: str, path: str) -> tuple[str, str]:
-    proc = run(["gh", "api", "repos/%s/contents/%s" % (repo, path)])
+    import base64
+
+    proc = run(["gh", "api", "repos/%s/contents/%s" % (repo, path)], check=False)
+    if proc.returncode != 0:
+        detail = (proc.stderr or proc.stdout).strip()
+        if "Not Found" in detail or "404" in detail:
+            raise LangstatsError(
+                "%s/%s was not found. For a profile README, create the public repository %s "
+                "with a README.md (https://github.com/new), or set readme_repo." % (repo, path, repo)
+            )
+        raise LangstatsError("could not read %s/%s from GitHub: %s" % (repo, path, detail))
     data = json.loads(proc.stdout)
     content = base64.b64decode(data.get("content", "")).decode("utf-8")
     return content, data["sha"]
 
 
 def _gh_put(repo: str, path: str, text: str, sha: str, message: str) -> None:
+    import base64
+
     body = json.dumps(
         {"message": message, "content": base64.b64encode(text.encode("utf-8")).decode("ascii"), "sha": sha}
     )
@@ -710,12 +815,9 @@ def _gh_put(repo: str, path: str, text: str, sha: str, message: str) -> None:
 
 
 def publish(home: Path, cfg: dict[str, Any], dry_run: bool = False, out=None) -> str:
-    """Returns "dry-run", "no-data", "unchanged" or "published"."""
+    """Returns "dry-run", "no-data", "manual", "unchanged" or "published"."""
     out = out or sys.stdout
-    if cfg["mode"] == "git":
-        repo = _git_repo(cfg)
-    else:
-        gh_repo = _gh_repo(cfg)
+    mode, target = resolve_target(cfg)
 
     block = render_block(home, cfg)
     if block is None:
@@ -723,10 +825,23 @@ def publish(home: Path, cfg: dict[str, Any], dry_run: bool = False, out=None) ->
         return "no-data"
 
     if dry_run:
+        where = {"git": "local clone %s" % target, "gh": "github.com/%s" % target, "manual": "manual (copy and paste)"}
+        out.write("langstats: dry run, target: %s/%s\n" % (where[mode], "" if mode == "manual" else cfg["readme_file"]))
         out.write("```txt\n%s\n```\n" % block)
         return "dry-run"
 
-    if cfg["mode"] == "git":
+    if mode == "manual":
+        snippet = write_snippet(home, cfg, block)
+        out.write(
+            "langstats: GitHub is not connected, so nothing was published.\n"
+            "Paste this into the README.md of your profile repository (github.com/<you>/<you>), "
+            "replacing any previous langstats block:\n\n%s\n"
+            "Saved to %s\n%s\n" % (snippet, home / SNIPPET_FILE, NO_GITHUB_HINT)
+        )
+        return "manual"
+
+    if mode == "git":
+        repo = target
         if _has_upstream(repo):
             run(["git", "pull", "--ff-only", "--quiet"], cwd=repo)
         readme = repo / cfg["readme_file"]
@@ -748,6 +863,7 @@ def publish(home: Path, cfg: dict[str, Any], dry_run: bool = False, out=None) ->
         else:
             out.write("langstats: README updated and committed (no upstream to push to).\n")
     else:
+        gh_repo = target
         text, sha = _gh_get(gh_repo, cfg["readme_file"])
         new = replace_section(text, cfg["section"], block)
         if new == text:
@@ -761,9 +877,9 @@ def publish(home: Path, cfg: dict[str, Any], dry_run: bool = False, out=None) ->
 def should_auto_publish(cfg: dict[str, Any], state: dict[str, Any], now: float) -> bool:
     if not cfg["auto_publish"]:
         return False
-    if cfg["mode"] == "git" and not cfg["readme_repo_path"]:
+    if cfg["mode"] == "manual":
         return False
-    if cfg["mode"] == "gh" and not cfg["readme_repo"]:
+    if cfg["mode"] == "git" and not cfg["readme_repo_path"]:
         return False
     last = max(float(state.get("last_publish") or 0), float(state.get("last_attempt") or 0))
     return now - last >= cfg["publish_interval_hours"] * 3600
@@ -772,6 +888,8 @@ def should_auto_publish(cfg: dict[str, Any], state: dict[str, Any], now: float) 
 def spawn_detached(args: list[str], log_path: Path) -> None:
     """Start `args` in the background, detached from the hook's process group,
     with output appended to `log_path`. Returns immediately."""
+    import subprocess
+
     log_path.parent.mkdir(parents=True, exist_ok=True)
     kwargs: dict[str, Any] = {"stdin": subprocess.DEVNULL, "stderr": subprocess.STDOUT, "close_fds": True}
     if os.name == "nt":
@@ -808,7 +926,8 @@ def cleanup_retention(home: Path, retention_days: int, today: dt.date | None = N
 
 def cmd_hook(args: argparse.Namespace) -> int:
     home = prepare_home()
-    raw = sys.stdin.read()
+    buffer = getattr(sys.stdin, "buffer", None)
+    raw = buffer.read().decode("utf-8", "replace") if buffer is not None else sys.stdin.read()
     try:
         payload = json.loads(raw)
     except ValueError:
@@ -878,8 +997,24 @@ def cmd_publish(args: argparse.Namespace) -> int:
     if args.auto:
         sys.stdout.write("[%s] auto-publish\n" % dt.datetime.now().isoformat(timespec="seconds"))
     result = publish(home, cfg, dry_run=args.dry_run)
-    if result != "dry-run":
+    if result not in ("dry-run", "manual"):
         update_state(home, last_publish=time.time())
+    return 0
+
+
+def cmd_snippet(args: argparse.Namespace) -> int:
+    home = prepare_home()
+    cfg = load_config(home)
+    block = render_block(home, cfg)
+    if block is None:
+        print("langstats: no activity in the configured range yet; nothing to paste.")
+        return 0
+    text = write_snippet(home, cfg, block)
+    print(text, end="")
+    if args.copy:
+        tool = copy_to_clipboard(text)
+        warn("copied to the clipboard (%s)" % tool if tool else "no clipboard tool found; copy the text above")
+    warn("also saved to %s" % (home / SNIPPET_FILE))
     return 0
 
 
@@ -936,38 +1071,32 @@ def cmd_doctor(args: argparse.Namespace) -> int:
     count = sum(1 for _ in iter_heartbeat_files(home))
     _check(True, "heartbeats", "%d day file(s) in %s" % (count, heartbeats_dir(home)))
 
+    try:
+        mode, target = resolve_target(cfg)
+    except LangstatsError as exc:
+        _check(False, "target (mode %s)" % cfg["mode"], str(exc))
+        print("not ready: fix the items marked [!!]")
+        return 1
+
     text = None
-    if cfg["mode"] == "git":
-        proc = None
-        try:
-            proc = run(["git", "--version"], check=False)
-        except LangstatsError:
-            pass
-        good &= _check(proc is not None and proc.returncode == 0, "git installed")
-        try:
-            repo = _git_repo(cfg)
-            good &= _check(True, "readme_repo_path", str(repo))
-            readme = repo / cfg["readme_file"]
-            if _check(readme.exists(), "README file", str(readme)):
-                text = readme.read_text(encoding="utf-8")
-            else:
-                good = False
-        except LangstatsError as exc:
-            good &= _check(False, "readme_repo_path", str(exc))
+    if mode == "manual":
+        _check(
+            True,
+            "target (mode %s)" % cfg["mode"],
+            "manual: GitHub is not connected; /langstats:snippet prints the block to paste. " + NO_GITHUB_HINT,
+        )
+    elif mode == "git":
+        good &= _check(True, "target (mode %s)" % cfg["mode"], "local clone %s" % target)
+        readme = target / cfg["readme_file"]
+        if _check(readme.exists(), "README file", str(readme)):
+            text = readme.read_text(encoding="utf-8")
+        else:
+            good = False
     else:
+        good &= _check(True, "target (mode %s)" % cfg["mode"], "github.com/%s via gh" % target)
         try:
-            auth = run(["gh", "auth", "status"], check=False)
-            good &= _check(
-                auth.returncode == 0,
-                "gh auth status",
-                "" if auth.returncode == 0 else (auth.stderr or auth.stdout).strip(),
-            )
-        except LangstatsError as exc:
-            good &= _check(False, "gh installed", str(exc))
-        try:
-            repo_name = _gh_repo(cfg)
-            text, _ = _gh_get(repo_name, cfg["readme_file"])
-            good &= _check(True, "README file", "%s/%s" % (repo_name, cfg["readme_file"]))
+            text, _ = _gh_get(target, cfg["readme_file"])
+            _check(True, "README file", "%s/%s" % (target, cfg["readme_file"]))
         except LangstatsError as exc:
             good &= _check(False, "README file", str(exc))
 
@@ -978,8 +1107,13 @@ def cmd_doctor(args: argparse.Namespace) -> int:
         good &= _check(
             has, "section markers", "%s ... %s" % (start, end) + ("" if has else " not found (run insert-markers)")
         )
-    print("ready to publish" if good else "not ready: fix the items marked [!!]")
+    print("ready to publish (%s)" % mode if good else "not ready: fix the items marked [!!]")
     return 0 if good else 1
+
+
+def _append_markers(text: str, snippet: str) -> str:
+    sep = "" if not text or text.endswith("\n\n") else ("\n" if text.endswith("\n") else "\n\n")
+    return text + sep + snippet
 
 
 def cmd_insert_markers(args: argparse.Namespace) -> int:
@@ -987,35 +1121,44 @@ def cmd_insert_markers(args: argparse.Namespace) -> int:
     cfg = load_config(home)
     start, end = markers(cfg["section"])
     snippet = markers_snippet(cfg["section"])
-    if cfg["mode"] == "git":
-        repo = _git_repo(cfg)
-        readme = repo / cfg["readme_file"]
+    mode, target = resolve_target(cfg)
+    if mode == "manual":
+        print("langstats: GitHub is not connected. Add these two lines to your README where the stats should go:")
+        print()
+        print(snippet)
+        return 0
+    if mode == "git":
+        readme = target / cfg["readme_file"]
         text = readme.read_text(encoding="utf-8") if readme.exists() else ""
         if start in text and end in text:
             print("langstats: markers already present in %s" % readme)
             return 0
-        sep = "" if not text or text.endswith("\n\n") else ("\n" if text.endswith("\n") else "\n\n")
         with open(str(readme), "w", encoding="utf-8", newline="") as fh:
-            fh.write(text + sep + snippet)
+            fh.write(_append_markers(text, snippet))
         print("langstats: markers added at the end of %s (committed with the next publish)" % readme)
     else:
-        repo_name = _gh_repo(cfg)
-        text, sha = _gh_get(repo_name, cfg["readme_file"])
+        text, sha = _gh_get(target, cfg["readme_file"])
         if start in text and end in text:
-            print("langstats: markers already present in %s/%s" % (repo_name, cfg["readme_file"]))
+            print("langstats: markers already present in %s/%s" % (target, cfg["readme_file"]))
             return 0
-        sep = "" if text.endswith("\n\n") else ("\n" if text.endswith("\n") else "\n\n")
-        _gh_put(
-            repo_name, cfg["readme_file"], text + sep + snippet, sha, "chore(readme): add langstats section markers"
-        )
-        print("langstats: markers added at the end of %s/%s" % (repo_name, cfg["readme_file"]))
+        message = "chore(readme): add langstats section markers"
+        _gh_put(target, cfg["readme_file"], _append_markers(text, snippet), sha, message)
+        print("langstats: markers added at the end of %s/%s" % (target, cfg["readme_file"]))
     return 0
 
 
-HOOK_COMMANDS = {"hook", "session-start", "session-end"}
+# Hooks bypass argparse entirely: they run after every Read/Edit.
+HOOK_HANDLERS = {
+    "hook": lambda: cmd_hook(None),
+    "session-start": lambda: cmd_session_start(None),
+    "session-end": lambda: cmd_session_end(None),
+}
+HOOK_COMMANDS = set(HOOK_HANDLERS)
 
 
 def build_parser() -> argparse.ArgumentParser:
+    import argparse
+
     parser = argparse.ArgumentParser(prog="langstats", description="Language stats for Claude Code sessions.")
     parser.add_argument("--version", action="version", version="langstats " + __version__)
     parser.add_argument(
@@ -1034,10 +1177,14 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--project", default=None, help="only this project")
     p.set_defaults(func=cmd_stats)
 
-    p = sub.add_parser("publish", help="update the README section")
+    p = sub.add_parser("publish", help="update the README section, or print it to paste by hand")
     p.add_argument("--dry-run", action="store_true", help="print the block without changing anything")
     p.add_argument("--auto", action="store_true", help=argparse.SUPPRESS)
     p.set_defaults(func=cmd_publish)
+
+    p = sub.add_parser("snippet", help="print the README block with its markers, ready to paste")
+    p.add_argument("--copy", action="store_true", help="also copy it to the clipboard")
+    p.set_defaults(func=cmd_snippet)
 
     p = sub.add_parser("config", help="show or change the configuration")
     p.add_argument("action", choices=["show", "set", "unset", "path"])
@@ -1061,11 +1208,16 @@ def _utf8_stdio() -> None:
 
 
 def main(argv: list[str] | None = None) -> int:
-    _utf8_stdio()
     argv = sys.argv[1:] if argv is None else argv
-    positional = [a for a in argv if not a.startswith("-")]
-    is_hook = bool(positional) and positional[0] in HOOK_COMMANDS
-    soft = is_hook or "--exit-zero" in argv
+    if len(argv) == 1 and argv[0] in HOOK_HANDLERS:
+        try:
+            return HOOK_HANDLERS[argv[0]]()
+        except Exception as exc:  # noqa: BLE001 - hooks must never break the session
+            warn("hook error: %s: %s" % (type(exc).__name__, exc))
+            return 0
+
+    _utf8_stdio()
+    soft = "--exit-zero" in argv
     try:
         args = build_parser().parse_args(argv)
         code = args.func(args)
@@ -1075,11 +1227,6 @@ def main(argv: list[str] | None = None) -> int:
         return 0 if soft else 1
     except SystemExit as exc:
         if soft and exc.code not in (0, None):
-            return 0
-        raise
-    except Exception as exc:  # noqa: BLE001 - hooks must never break the session
-        if is_hook:
-            warn("hook error: %s: %s" % (type(exc).__name__, exc))
             return 0
         raise
 
