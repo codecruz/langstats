@@ -997,7 +997,7 @@ def cmd_publish(args: argparse.Namespace) -> int:
     if args.auto:
         sys.stdout.write("[%s] auto-publish\n" % dt.datetime.now().isoformat(timespec="seconds"))
     result = publish(home, cfg, dry_run=args.dry_run)
-    if result not in ("dry-run", "manual"):
+    if result in ("published", "unchanged"):  # no-data / manual / dry-run do not count
         update_state(home, last_publish=time.time())
     return 0
 

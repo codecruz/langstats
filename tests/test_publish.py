@@ -206,6 +206,13 @@ def test_exit_zero_reports_but_does_not_fail(home, write_config, capsys):
     assert "/langstats:setup" in capsys.readouterr().err
 
 
+def test_publish_without_data_does_not_count_as_published(home, profile_repo, write_config):
+    _, clone = profile_repo
+    write_config(readme_repo_path=str(clone))
+    assert langstats.main(["publish"]) == 0
+    assert "last_publish" not in langstats.read_state(home)
+
+
 def test_publish_records_last_publish(home, profile_repo, write_config):
     _, clone = profile_repo
     write_config(readme_repo_path=str(clone))
