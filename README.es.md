@@ -29,6 +29,7 @@ Other                           ███▒░░░░░░░░░░░░
 
 - [Inicio rápido](#inicio-rápido)
 - [Publicar: automático o a mano](#publicar-automático-o-a-mano)
+- [Estilo de las barras](#estilo-de-las-barras)
 - [Comandos](#comandos)
 - [Configuración](#configuración)
 - [Cómo se cuenta el tiempo](#cómo-se-cuenta-el-tiempo)
@@ -144,6 +145,54 @@ TypeScript                      ██████░░░░░░░░░░
 adelante conectas GitHub (`gh auth login`), la siguiente publicación actualizará
 esa misma sección automáticamente.
 
+## Estilo de las barras
+
+Los símbolos de las barras los eliges tú. Mira todos los estilos con una vista
+previa:
+
+```text
+/langstats:style
+```
+
+```txt
+  bars      █████████░░░░░░   ░ ▒ ▓ █
+  flowers   🌸🌸🌸🌸🌸🌸🌸🌸🌸······   · 🌱 🌸
+  rocket    💮💮💮💮💮💮💮💮💮······   · 🚀 💮
+  hearts    💖💖💖💖💖💖💖💖💖······   · 💗 💖
+  moon      🌕🌕🌕🌕🌕🌕🌕🌕🌕🌑🌑🌑🌑🌑🌑   🌑 🌓 🌕
+  stars     ★★★★★★★★★☆☆☆☆☆☆   ☆ ★
+  dots      ●●●●●●●●●○○○○○○   ○ ◐ ●
+  squares   🟩🟩🟩🟩🟩🟩🟩🟩🟩⬜⬜⬜⬜⬜⬜   ⬜ 🟩
+  ascii     #########------   - = #
+```
+
+Elige uno por su nombre:
+
+```text
+/langstats:style flowers
+```
+
+```txt
+Python                          🌸🌸🌸🌸🌸🌸🌸🌸🌸🌸🌸🌱·············   45.00 %
+TypeScript                      🌸🌸🌸🌸🌸🌸🌸🌱·················   30.00 %
+```
+
+O usa tus propios símbolos, **de vacío a lleno**. Con dos símbolos basta (vacío
+y lleno); con tres o más, los del medio marcan un paso lleno a medias:
+
+```text
+/langstats:style "·🌱🌸"       vacío · , medio 🌱 , lleno 🌸
+/langstats:style "-#"          vacío - , lleno #
+/langstats:style "· ❤️ 💖"     separados por espacios
+```
+
+Separa los símbolos con espacios cuando un emoji esté formado por varios
+caracteres (como ❤️ o las banderas); si una barra se ve rota, suele ser por eso.
+
+El nuevo estilo se usa en la siguiente publicación. Los emojis ocupan casi el
+doble que otros caracteres, así que quizá quieras una barra más corta:
+`run config set bar_length 15`.
+
 ## Comandos
 
 | Comando | Qué hace |
@@ -152,6 +201,7 @@ esa misma sección automáticamente.
 | `/langstats:stats [--days N] [--project NOMBRE]` | Tiempo y porcentaje por lenguaje, y tiempo por proyecto. `--days 0` abarca todo el historial. |
 | `/langstats:publish [--dry-run]` | Actualiza la sección del README, o te da el bloque para pegar si GitHub no está conectado. `--dry-run` muestra el bloque y dónde iría, sin cambiar nada. |
 | `/langstats:snippet` | Te da el bloque con sus marcadores para pegarlo a mano, copiado al portapapeles cuando es posible. |
+| `/langstats:style [nombre \| símbolos]` | Sin argumentos, lista los estilos de barra con una vista previa. Con un nombre (`flowers`) o tus propios símbolos (`"·🌱🌸"`), cambia el estilo. |
 
 Las mismas acciones están disponibles desde una terminal con el lanzador del
 plugin instalado (`~/.claude/plugins/cache/codecruz/langstats/<versión>/scripts/`):
@@ -160,6 +210,7 @@ plugin instalado (`~/.claude/plugins/cache/codecruz/langstats/<versión>/scripts
 run stats --days 30          # tabla de lenguajes de los últimos 30 días
 run publish --dry-run        # muestra el bloque sin cambiar nada
 run snippet --copy           # bloque para pegar, copiado al portapapeles
+run style flowers            # cambia el estilo de las barras
 run doctor                   # comprueba que todo está listo para publicar
 run config show              # configuración actual
 run config set top_n 5       # cambia un ajuste
@@ -184,7 +235,7 @@ válido nunca rompe nada: se avisa y se usa el valor por defecto.
 | `range_days` | `7` | Días incluidos; hoy cuenta como uno. `0` = todo el historial |
 | `top_n` | `7` | Filas del bloque, `Other` incluida |
 | `min_percent` | `0.5` | Los lenguajes por debajo de este porcentaje van a `Other` |
-| `blocks` | `░▒▓█` | Caracteres de la barra, de vacío a lleno. Para un estilo con emojis usa `·🚀💮` |
+| `blocks` | `░▒▓█` | Símbolos de la barra, de vacío a lleno: un nombre de estilo (`flowers`, `rocket`, `hearts`…) o tus propios símbolos. Lo más fácil es `/langstats:style` |
 | `bar_length` | `25` | Ancho de la barra en caracteres |
 | `name_width` | `32` | Ancho de la columna del lenguaje |
 | `show_time` | `false` | Muestra también el tiempo por lenguaje en el bloque del README |

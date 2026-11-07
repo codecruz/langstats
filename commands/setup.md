@@ -29,10 +29,11 @@ The `target` line of the status above says how langstats will publish with mode 
 1. **No GitHub connection.** Explain the options and ask which one they want:
    - **Connect GitHub (recommended):** install the GitHub CLI from https://cli.github.com if needed, then type `! gh auth login` in this prompt. When done, run `doctor` again and continue with step 2.
    - **Local clone:** if they already have their profile repository cloned and push access with git, save the path with `config set readme_repo_path <path>` and continue with step 2.
-   - **Manual:** run `config set mode manual`. Tell them `/langstats:snippet` prints the block (and copies it to the clipboard when possible) to paste into their README whenever they want. Skip to step 5.
+   - **Manual:** run `config set mode manual`. Tell them `/langstats:snippet` prints the block (and copies it to the clipboard when possible) to paste into their README whenever they want. Then go to step 4 (bar style) and finish with step 6.
 2. **Repository.** The default is their profile README repository `<login>/<login>`. Ask whether that is right; if they want another repository, save it with `config set readme_repo <owner/repo>`. If `doctor` says the repository was not found, tell them to create the public repository `<login>/<login>` with a README on GitHub first.
 3. **Section.** Ask for the section name (default `langstats`, markers `<!--START_SECTION:langstats-->` / `<!--END_SECTION:langstats-->`). Save with `config set section <name>`. Run `doctor`. If only the markers are missing, ask for confirmation before running `"${CLAUDE_PLUGIN_ROOT}/scripts/run" insert-markers`, which appends them at the end of the README, then run `doctor` again.
-4. **Auto-publish.** Ask whether to publish automatically when a session ends (at most every `publish_interval_hours`, default 12; it runs in the background and never slows the session). Save with `config set auto_publish true|false`.
-5. **Finish.** Run `"${CLAUDE_PLUGIN_ROOT}/scripts/run" publish --dry-run` and show the block. Remind them of `/langstats:publish`, `/langstats:snippet` and `/langstats:stats`.
+4. **Bar style.** Run `"${CLAUDE_PLUGIN_ROOT}/scripts/run" style` and show the list. Ask which style they want (keep the current one by default), or whether they prefer their own symbols from empty to full, such as `·🌱🌸`. Save it with `"${CLAUDE_PLUGIN_ROOT}/scripts/run" style <name or symbols>`.
+5. **Auto-publish.** Ask whether to publish automatically when a session ends (at most every `publish_interval_hours`, default 12; it runs in the background and never slows the session). Save with `config set auto_publish true|false`.
+6. **Finish.** Run `"${CLAUDE_PLUGIN_ROOT}/scripts/run" publish --dry-run` and show the block. Remind them of `/langstats:publish`, `/langstats:snippet`, `/langstats:stats` and `/langstats:style`.
 
 Ask one question at a time and keep the current value as the default when there is one.

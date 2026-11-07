@@ -6,6 +6,13 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+- Configurable bar style: `/langstats:style` lists the styles with a preview
+  (`bars`, `flowers` 🌸, `rocket` 🚀, `hearts`, `moon`, `stars`, `dots`, `squares`,
+  `ascii`) and sets one by name or with your own symbols, from empty to full.
+  Symbols can be separated by spaces, so emoji made of several characters work.
+  `/langstats:setup` asks for the style.
+
 ### Fixed
 - A publish with no data no longer resets the auto-publish interval.
 

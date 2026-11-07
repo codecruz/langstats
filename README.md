@@ -28,6 +28,7 @@ Other                           ███▒░░░░░░░░░░░░
 
 - [Quick start](#quick-start)
 - [Publishing: automatic or by hand](#publishing-automatic-or-by-hand)
+- [Bar style](#bar-style)
 - [Commands](#commands)
 - [Configuration](#configuration)
 - [How time is counted](#how-time-is-counted)
@@ -144,6 +145,53 @@ TypeScript                      ██████░░░░░░░░░░
 GitHub later (`gh auth login`), the next publish updates that same section
 automatically.
 
+## Bar style
+
+The symbols of the bars are up to you. See every style with a preview:
+
+```text
+/langstats:style
+```
+
+```txt
+  bars      █████████░░░░░░   ░ ▒ ▓ █
+  flowers   🌸🌸🌸🌸🌸🌸🌸🌸🌸······   · 🌱 🌸
+  rocket    💮💮💮💮💮💮💮💮💮······   · 🚀 💮
+  hearts    💖💖💖💖💖💖💖💖💖······   · 💗 💖
+  moon      🌕🌕🌕🌕🌕🌕🌕🌕🌕🌑🌑🌑🌑🌑🌑   🌑 🌓 🌕
+  stars     ★★★★★★★★★☆☆☆☆☆☆   ☆ ★
+  dots      ●●●●●●●●●○○○○○○   ○ ◐ ●
+  squares   🟩🟩🟩🟩🟩🟩🟩🟩🟩⬜⬜⬜⬜⬜⬜   ⬜ 🟩
+  ascii     #########------   - = #
+```
+
+Choose one by name:
+
+```text
+/langstats:style flowers
+```
+
+```txt
+Python                          🌸🌸🌸🌸🌸🌸🌸🌸🌸🌸🌸🌱·············   45.00 %
+TypeScript                      🌸🌸🌸🌸🌸🌸🌸🌱·················   30.00 %
+```
+
+Or use your own symbols, **from empty to full**. Two symbols are enough
+(empty and full); with three or more, the ones in the middle mark a partly
+filled step:
+
+```text
+/langstats:style "·🌱🌸"       empty · , half 🌱 , full 🌸
+/langstats:style "-#"          empty - , full #
+/langstats:style "· ❤️ 💖"     separated by spaces
+```
+
+Separate the symbols with spaces when an emoji is made of several characters
+(like ❤️ or flags); if a bar looks broken, that is usually the reason.
+
+The new style is used the next time you publish. Emoji are about twice as wide
+as other characters, so you may want a shorter bar: `run config set bar_length 15`.
+
 ## Commands
 
 | Command | What it does |
@@ -152,6 +200,7 @@ automatically.
 | `/langstats:stats [--days N] [--project NAME]` | Time and percentage per language, plus time per project. `--days 0` covers all time. |
 | `/langstats:publish [--dry-run]` | Updates the README section, or gives you the block to paste when GitHub is not connected. `--dry-run` shows the block and where it would go, and changes nothing. |
 | `/langstats:snippet` | Gives you the block with its markers to paste by hand, copied to the clipboard when possible. |
+| `/langstats:style [name \| symbols]` | Without arguments, lists the bar styles with a preview. With a name (`flowers`) or your own symbols (`"·🌱🌸"`), sets the style. |
 
 The same actions are available from a terminal through the launcher in the
 installed plugin (`~/.claude/plugins/cache/codecruz/langstats/<version>/scripts/`):
@@ -160,6 +209,7 @@ installed plugin (`~/.claude/plugins/cache/codecruz/langstats/<version>/scripts/
 run stats --days 30          # language table for the last 30 days
 run publish --dry-run        # show the block without changing anything
 run snippet --copy           # block to paste, copied to the clipboard
+run style flowers            # change the bar style
 run doctor                   # check that everything is ready to publish
 run config show              # current configuration
 run config set top_n 5       # change a setting
@@ -184,7 +234,7 @@ value never breaks anything; it is reported and the default is used.
 | `range_days` | `7` | Days included, today counts as one. `0` = all time |
 | `top_n` | `7` | Rows in the block, `Other` included |
 | `min_percent` | `0.5` | Languages below this percentage go into `Other` |
-| `blocks` | `░▒▓█` | Bar characters, from empty to full. For an emoji style use `·🚀💮` |
+| `blocks` | `░▒▓█` | Bar symbols, from empty to full: a style name (`flowers`, `rocket`, `hearts`…) or your own symbols. Easiest with `/langstats:style` |
 | `bar_length` | `25` | Bar width in characters |
 | `name_width` | `32` | Width of the language column |
 | `show_time` | `false` | Also show the time per language in the README block |

@@ -61,6 +61,20 @@ TRACKED_TOOLS = ("Edit", "Write", "MultiEdit", "NotebookEdit", "Read")
 OTHER = "Other"
 SETUP_HINT = "Run /langstats:setup to configure it."
 MODES = ("auto", "git", "gh", "manual")
+
+# Bar styles for the `blocks` setting, from empty to full. Each item is one
+# symbol, so emoji made of several code points (like ❤️) work too.
+BAR_STYLES: dict[str, list[str]] = {
+    "bars": ["░", "▒", "▓", "█"],
+    "flowers": ["·", "🌱", "🌸"],
+    "rocket": ["·", "🚀", "💮"],
+    "hearts": ["·", "💗", "💖"],
+    "moon": ["🌑", "🌓", "🌕"],
+    "stars": ["☆", "★"],
+    "dots": ["○", "◐", "●"],
+    "squares": ["⬜", "🟩"],
+    "ascii": ["-", "=", "#"],
+}
 SNIPPET_FILE = "readme-snippet.md"
 HEARTBEAT_FILE_RE = re.compile(r"^(\d{4}-\d{2}-\d{2})\.jsonl$")
 
@@ -133,7 +147,15 @@ SCHEMA: dict[str, tuple[str, Callable[[Any], bool], str]] = {
     "range_days": ("int", lambda v: _is_int(v) and v >= 0, "an integer >= 0 (0 = all)"),
     "top_n": ("int", lambda v: _is_int(v) and v >= 1, "an integer >= 1"),
     "min_percent": ("num", lambda v: _is_num(v) and 0 <= v <= 100, "a number between 0 and 100"),
-    "blocks": ("str", lambda v: isinstance(v, str) and len(v) >= 2, "a string of at least 2 characters"),
+    "blocks": (
+        "blocks",
+        lambda v: (
+            (isinstance(v, str) and (v in BAR_STYLES or len(v) >= 2))
+            or (isinstance(v, list) and len(v) >= 2 and all(_nonempty_str(x) for x in v))
+        ),
+        'a style name (%s), a string like "·🌱🌸" or symbols separated by spaces, from empty to full'
+        % ", ".join(BAR_STYLES),
+    ),
     "bar_length": ("int", lambda v: _is_int(v) and 1 <= v <= 200, "an integer between 1 and 200"),
     "name_width": ("int", lambda v: _is_int(v) and 1 <= v <= 200, "an integer between 1 and 200"),
     "show_time": ("bool", lambda v: isinstance(v, bool), "true or false"),
@@ -245,6 +267,15 @@ def parse_config_value(key: str, raw: str) -> Any:
                 value = [x.strip() for x in text.split(",") if x.strip()]
         elif kind == "dict":
             value = json.loads(text)
+        elif kind == "blocks":
+            if text in BAR_STYLES:
+                value = text
+            elif text.startswith("["):
+                value = json.loads(text)
+            elif len(text.split()) > 1:
+                value = text.split()
+            else:
+                value = text
         else:  # pragma: no cover
             raise ValueError(kind)
     except ValueError:
@@ -562,14 +593,24 @@ def summarize(totals: dict[str, float], top_n: int, min_percent: float) -> list[
 # --------------------------------------------------------------------------- #
 
 
-def make_bar(percent: float, bar_length: int, blocks: str) -> str:
-    """Text progress bar."""
-    markers = len(blocks) - 1
+def resolve_blocks(blocks: Any) -> list[str]:
+    """The `blocks` setting as a list of symbols, empty to full."""
+    if isinstance(blocks, str):
+        return list(BAR_STYLES.get(blocks, blocks))
+    return list(blocks)
+
+
+def make_bar(percent: float, bar_length: int, blocks: Any) -> str:
+    """Text progress bar. `blocks` is a style name, a string
+    (one symbol per character) or a list of symbols, from empty to full."""
+    symbols = resolve_blocks(blocks)
+    markers = len(symbols) - 1
     proportion = percent / 100 * bar_length
-    full = int(proportion + 0.5 / markers)
+    full = min(int(proportion + 0.5 / markers), bar_length)
     remainder = int((proportion - full) * markers + 0.5)
-    bar = blocks[-1] * full + (blocks[remainder] if remainder > 0 else "")
-    return bar.ljust(bar_length, blocks[0])
+    partial = [symbols[remainder]] if remainder > 0 and full < bar_length else []
+    empty = bar_length - full - len(partial)
+    return symbols[-1] * full + "".join(partial) + symbols[0] * empty
 
 
 def format_duration(seconds: float) -> str:
@@ -1018,6 +1059,50 @@ def cmd_snippet(args: argparse.Namespace) -> int:
     return 0
 
 
+def _style_label(blocks: Any) -> str:
+    if isinstance(blocks, str) and blocks in BAR_STYLES:
+        return blocks
+    return " ".join(resolve_blocks(blocks))
+
+
+def _style_preview(home: Path, cfg: dict[str, Any]) -> list[str]:
+    """The user's own top languages when there is data, else an example."""
+    beats = read_heartbeats(home, cfg["range_days"])
+    rows = summarize(aggregate(beats, cfg["timeout_minutes"], cfg["exclude_languages"]), 3, cfg["min_percent"])
+    if not rows:
+        rows = [("Python", 0, 45.0), ("TypeScript", 0, 30.0), ("Other", 0, 25.0)]
+    return render_rows(rows, dict(cfg, show_time=False))
+
+
+def cmd_style(args: argparse.Namespace) -> int:
+    home = prepare_home()
+    if args.value:
+        raw = args.value[0] if len(args.value) == 1 else json.dumps(args.value, ensure_ascii=False)
+        value = parse_config_value("blocks", raw)
+        user = read_user_config(home)
+        user["blocks"] = value
+        write_user_config(home, user)
+        cfg = load_config(home)
+        print("Bar style set to: %s\n" % _style_label(value))
+        for line in _style_preview(home, cfg):
+            print(line)
+        print("\nIt is used the next time you publish (/langstats:publish).")
+        return 0
+    cfg = load_config(home)
+    print("Current style: %s\n" % _style_label(cfg["blocks"]))
+    print("Available styles (preview at 60 %):\n")
+    for name, symbols in BAR_STYLES.items():
+        mark = "  <- current" if _style_label(cfg["blocks"]) == name else ""
+        print("  %s %s   %s%s" % (name.ljust(9), make_bar(60, 15, symbols), " ".join(symbols), mark))
+    print(
+        "\nChoose one with:      style flowers"
+        '\nOr use your own:      style "·🌱🌸"   (empty, half, full; 2 or more symbols)'
+        '\nSeparate with spaces: style "· ❤️ 💖"  (for emoji made of several characters)'
+        "\nEmoji are about twice as wide as other characters; lower bar_length if the bar looks too long."
+    )
+    return 0
+
+
 def cmd_config(args: argparse.Namespace) -> int:
     home = prepare_home()
     if args.action == "path":
@@ -1185,6 +1270,10 @@ def build_parser() -> argparse.ArgumentParser:
     p = sub.add_parser("snippet", help="print the README block with its markers, ready to paste")
     p.add_argument("--copy", action="store_true", help="also copy it to the clipboard")
     p.set_defaults(func=cmd_snippet)
+
+    p = sub.add_parser("style", help="list bar styles, or set one (a name or your own symbols)")
+    p.add_argument("value", nargs="*", help="style name, or symbols from empty to full")
+    p.set_defaults(func=cmd_style)
 
     p = sub.add_parser("config", help="show or change the configuration")
     p.add_argument("action", choices=["show", "set", "unset", "path"])
