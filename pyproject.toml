@@ -1,0 +1,20 @@
+[project]
+name = "langstats"
+version = "0.2.0"
+description = "Language stats for Claude Code"
+requires-python = ">=3.9"
+license = { text = "MIT" }
+
+[tool.ruff]
+line-length = 120
+target-version = "py39"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "SIM"]
+ignore = ["UP031", "SIM105", "SIM108"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["langstats", "conftest"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

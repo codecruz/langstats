@@ -1,0 +1,19 @@
+{
+  "name": "codecruz",
+  "owner": {
+    "name": "codecruz",
+    "url": "https://github.com/codecruz"
+  },
+  "metadata": {
+    "description": "Claude Code plugins by codecruz"
+  },
+  "plugins": [
+    {
+      "name": "langstats",
+      "source": "./",
+      "description": "Language stats for Claude Code, published to your GitHub profile README.",
+      "version": "0.2.0",
+      "category": "productivity"
+    }
+  ]
+}

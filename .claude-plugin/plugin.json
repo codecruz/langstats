@@ -1,0 +1,13 @@
+{
+  "name": "langstats",
+  "version": "0.2.0",
+  "description": "Language stats for Claude Code: tracks which languages Claude works in and publishes them to your GitHub profile README.",
+  "author": {
+    "name": "codecruz",
+    "url": "https://github.com/codecruz"
+  },
+  "homepage": "https://github.com/codecruz/langstats",
+  "repository": "https://github.com/codecruz/langstats",
+  "license": "MIT",
+  "keywords": ["stats", "readme", "github-profile", "languages"]
+}
