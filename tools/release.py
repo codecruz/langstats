@@ -83,7 +83,8 @@ def release(root: Path, new: str, date: str) -> str:
         root / "scripts" / "langstats.py", '__version__ = "%s"' % old, '__version__ = "%s"' % new
     )
     for path, text in changes.items():
-        path.write_text(text, encoding="utf-8", newline="")
+        with open(path, "w", encoding="utf-8", newline="") as f:  # write_text(newline=) needs 3.10
+            f.write(text)
     return old
 
 
