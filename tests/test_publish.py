@@ -2,6 +2,7 @@
 
 import datetime as dt
 import json
+import os
 import subprocess
 import time
 
@@ -76,10 +77,10 @@ def test_a6_publish_git_only_touches_section_and_is_idempotent(home, profile_rep
     assert text.startswith("# Hello\n\nIntro text.\n\n<!--START_SECTION:langstats-->\n\n```txt\n")
     assert text.endswith("```\n\n<!--END_SECTION:langstats-->\n\nFooter.\n")
     assert "Python" in text and "Go" in text
-    assert commit_count(bare) == 2  # pushed to the remote
+    assert commit_count(bare) == 2  # one commit, pushed to the remote
     assert git("log", "-1", "--format=%s", cwd=bare).strip() == "chore(readme): update language stats"
-    diff = git("diff", "HEAD~1", "--stat", cwd=clone)
-    assert "README.md" in diff and "1 file changed" in diff
+    changed = git("diff", "HEAD~1", "--name-only", cwd=clone).split()
+    assert sorted(changed) == [".langstats/stats.json", "README.md"]
 
     assert langstats.publish(home, cfg) == "unchanged"
     assert commit_count(bare) == 2
@@ -151,19 +152,12 @@ def test_manual_snippet_pastes_into_readme_like_publish(home, write_config):
     )
 
 
-def test_auto_mode_with_gh_targets_profile_repo(home, monkeypatch):
+def test_auto_mode_with_gh_targets_profile_repo(home, monkeypatch, fake_github):
     add_heartbeats(home, some_beats())
     monkeypatch.setattr(langstats, "gh_login", lambda: "octo")
-    seen = {}
-
-    def fake_get(repo, path):
-        seen["get"] = repo
-        return README, "sha"
-
-    monkeypatch.setattr(langstats, "_gh_get", fake_get)
-    monkeypatch.setattr(langstats, "_gh_put", lambda repo, *a: seen.setdefault("put", repo))
+    fake_github.files["octo/octo"] = {"README.md": README}
     assert langstats.publish(home, langstats.load_config(home)) == "published"
-    assert seen == {"get": "octo/octo", "put": "octo/octo"}
+    assert "```txt" in fake_github.files["octo/octo"]["README.md"]
 
 
 def test_auto_mode_prefers_configured_clone(home, profile_repo, write_config, monkeypatch):
@@ -221,25 +215,200 @@ def test_publish_records_last_publish(home, profile_repo, write_config):
     assert langstats.read_state(home)["last_publish"] > time.time() - 60
 
 
-def test_gh_mode(home, write_config, monkeypatch):
+def test_gh_mode(home, write_config, fake_github):
     write_config(mode="gh", readme_repo="me/me")
     add_heartbeats(home, some_beats())
-    store = {"text": README, "puts": 0}
-
-    def fake_get(repo, path):
-        assert (repo, path) == ("me/me", "README.md")
-        return store["text"], "sha1"
-
-    def fake_put(repo, path, text, sha, message):
-        store["text"], store["puts"] = text, store["puts"] + 1
-
-    monkeypatch.setattr(langstats, "_gh_get", fake_get)
-    monkeypatch.setattr(langstats, "_gh_put", fake_put)
+    fake_github.files["me/me"] = {"README.md": README}
     cfg = langstats.load_config(home)
     assert langstats.publish(home, cfg) == "published"
-    assert "```txt" in store["text"]
+    files = fake_github.files["me/me"]
+    assert "```txt" in files["README.md"]
+    assert ".langstats/stats.json" in files
+    assert fake_github.puts == [".langstats/stats.json", "README.md"]  # data first
     assert langstats.publish(home, cfg) == "unchanged"
-    assert store["puts"] == 1
+    assert len(fake_github.puts) == 2
+
+
+def test_gh_missing_profile_repo_explains_how_to_create_it(home, write_config, fake_github):
+    write_config(mode="gh", readme_repo="me/me")
+    add_heartbeats(home, some_beats())
+    with pytest.raises(langstats.LangstatsError, match="create the public repository me/me"):
+        langstats.publish(home, langstats.load_config(home))
+
+
+# --- several computers -------------------------------------------------------
+
+
+def computer(tmp_path, name, lang, minutes=10, config=None):
+    """A langstats home (one computer) with `minutes` of activity in `lang`."""
+    h = tmp_path / name
+    start = time.time() - 3000
+    add_heartbeats(h, [{"ts": start + i * 60, "lang": lang} for i in range(minutes + 1)])
+    (h / "config.json").write_text(json.dumps(config or {"mode": "gh", "readme_repo": "me/me"}), encoding="utf-8")
+    return h
+
+
+def publish_from(monkeypatch, h):
+    monkeypatch.setenv("LANGSTATS_HOME", str(h))
+    return langstats.publish(h, langstats.load_config(h))
+
+
+def shared(fake_github, repo="me/me"):
+    return json.loads(fake_github.files[repo][".langstats/stats.json"])
+
+
+def test_two_computers_add_up_through_gh(tmp_path, monkeypatch, fake_github):
+    fake_github.files["me/me"] = {"README.md": README}
+    laptop = computer(tmp_path, "laptop", "Python")
+    desktop = computer(tmp_path, "desktop", "Rust")
+    assert publish_from(monkeypatch, laptop) == "published"
+    assert publish_from(monkeypatch, desktop) == "published"
+    readme = fake_github.files["me/me"]["README.md"]
+    assert "Python" in readme and "Rust" in readme and "50.00 %" in readme  # neither replaces the other
+    # publishing again from either computer does not count its share twice
+    assert publish_from(monkeypatch, laptop) == "unchanged"
+    assert publish_from(monkeypatch, desktop) == "unchanged"
+    assert sorted(sum((list(d.values()) for d in shared(fake_github)["days"].values()), [])) == [600, 600]
+
+
+def test_a_computer_updates_only_its_own_share(tmp_path, monkeypatch, fake_github):
+    fake_github.files["me/me"] = {"README.md": README}
+    laptop = computer(tmp_path, "laptop", "Python")
+    desktop = computer(tmp_path, "desktop", "Python")
+    publish_from(monkeypatch, laptop)
+    publish_from(monkeypatch, desktop)
+    add_heartbeats(laptop, [{"ts": time.time() - 100, "lang": "Python"}, {"ts": time.time() - 40, "lang": "Python"}])
+    publish_from(monkeypatch, laptop)
+    [day] = shared(fake_github)["days"].values()
+    assert day["Python"] == 600 + 600 + 60
+
+
+def test_two_computers_add_up_through_git(tmp_path, monkeypatch, profile_repo, git_env):
+    bare, clone_a = profile_repo
+    clone_b = tmp_path / "profile-b"
+    git("clone", "--quiet", str(bare), str(clone_b), cwd=tmp_path)
+    laptop = computer(tmp_path, "laptop", "Python", config={"readme_repo_path": str(clone_a)})
+    desktop = computer(tmp_path, "desktop", "Rust", config={"readme_repo_path": str(clone_b)})
+    assert publish_from(monkeypatch, laptop) == "published"
+    assert publish_from(monkeypatch, desktop) == "published"  # pulls the laptop's totals first
+    readme = git("show", "HEAD:README.md", cwd=bare)
+    assert "Python" in readme and "Rust" in readme and "50.00 %" in readme
+    assert git("ls-tree", "--name-only", "-r", "HEAD", ".langstats/", cwd=bare).split() == [".langstats/stats.json"]
+
+
+def test_git_push_race_is_retried(tmp_path, monkeypatch, profile_repo, git_env):
+    """The desktop's clone is behind when it pushes: its commit is undone and redone."""
+    bare, clone_a = profile_repo
+    clone_b = tmp_path / "profile-b"
+    git("clone", "--quiet", str(bare), str(clone_b), cwd=tmp_path)
+    laptop = computer(tmp_path, "laptop", "Python", config={"readme_repo_path": str(clone_a)})
+    desktop = computer(tmp_path, "desktop", "Rust", config={"readme_repo_path": str(clone_b)})
+    publish_from(monkeypatch, laptop)
+    real_sync = langstats.GitStore.sync
+    calls = []
+
+    def stale_first_sync(self):  # the first pull "misses" the laptop's push
+        calls.append(1)
+        if len(calls) > 1:
+            real_sync(self)
+
+    monkeypatch.setattr(langstats.GitStore, "sync", stale_first_sync)
+    assert publish_from(monkeypatch, desktop) == "published"
+    assert len(calls) == 2
+    readme = git("show", "HEAD:README.md", cwd=bare)
+    assert "Python" in readme and "Rust" in readme
+
+
+def test_gh_conflict_is_retried(tmp_path, monkeypatch, fake_github):
+    fake_github.files["me/me"] = {"README.md": README}
+    laptop = computer(tmp_path, "laptop", "Python")
+    desktop = computer(tmp_path, "desktop", "Rust")
+    publish_from(monkeypatch, laptop)
+    real_put = fake_github.put
+    raced = []
+
+    def racing_put(repo, path, text, sha, message):
+        if not raced:  # the laptop publishes again right before our first write
+            raced.append(1)
+            fake_github.files[repo][path] = fake_github.files[repo][path].replace("600", "601")
+        return real_put(repo, path, text, sha, message)
+
+    monkeypatch.setattr(langstats, "_gh_put", racing_put)
+    assert publish_from(monkeypatch, desktop) == "published"
+    values = sorted(sum((list(d.values()) for d in shared(fake_github)["days"].values()), []))
+    assert values == [600, 601]  # the racing change survived and Rust was added once
+
+
+def test_shared_file_is_anonymous(home, write_config, fake_github):
+    write_config(mode="gh", readme_repo="me/me")
+    fake_github.files["me/me"] = {"README.md": README}
+    start = time.time() - 600
+    add_heartbeats(
+        home,
+        [
+            {"ts": start, "lang": "Python", "project": "secret-client", "session": "abc"},
+            {"ts": start + 60, "lang": "Go", "project": "secret-client", "session": "abc"},
+        ],
+    )
+    langstats.publish(home, langstats.load_config(home))
+    text = fake_github.files["me/me"][".langstats/stats.json"]
+    data = json.loads(text)
+    assert set(data) == {"v", "days"}
+    assert list(data["days"].values()) == [{"Python": 60}]
+    for secret in ("secret-client", "abc", "session", "project", "machine", "host", os.environ.get("USER", "-")):
+        assert secret not in text
+
+
+def test_shared_file_keeps_only_the_days_shown(home, write_config, fake_github):
+    write_config(mode="gh", readme_repo="me/me", range_days=7)
+    old = (dt.date.today() - dt.timedelta(days=30)).isoformat()
+    fake_github.files["me/me"] = {
+        "README.md": README,
+        ".langstats/stats.json": json.dumps({"v": 1, "days": {old: {"COBOL": 999}}}),
+    }
+    add_heartbeats(home, some_beats())
+    assert langstats.publish(home, langstats.load_config(home)) == "published"
+    days = shared(fake_github)["days"]
+    assert old not in days and len(days) == 1
+    assert "COBOL" not in fake_github.files["me/me"]["README.md"]
+
+
+def test_corrupt_shared_file_is_replaced(home, write_config, fake_github):
+    write_config(mode="gh", readme_repo="me/me")
+    fake_github.files["me/me"] = {"README.md": README, ".langstats/stats.json": "{not json"}
+    add_heartbeats(home, some_beats())
+    assert langstats.publish(home, langstats.load_config(home)) == "published"
+    assert shared(fake_github)["v"] == 1
+
+
+def test_private_data_repo(home, write_config, fake_github):
+    write_config(mode="gh", readme_repo="me/me", data_repo="me/langstats-data")
+    fake_github.files["me/me"] = {"README.md": README}
+    fake_github.files["me/langstats-data"] = {}
+    add_heartbeats(home, some_beats())
+    assert langstats.publish(home, langstats.load_config(home)) == "published"
+    assert set(fake_github.files["me/me"]) == {"README.md"}  # nothing but the block in the public repo
+    assert ".langstats/stats.json" in fake_github.files["me/langstats-data"]
+
+
+def test_combine_math():
+    shared_days = {"2026-11-07": {"Python": 100, "Go": 50}, "2026-10-01": {"Rust": 10}}
+    previous = {"2026-11-07": {"Python": 40}}
+    current = {"2026-11-07": {"Python": 70, "Zig": 5}, "2026-11-06": {"Go": 1}}
+    out = langstats.combine(shared_days, previous, current, "2026-11-01")
+    assert out == {"2026-11-06": {"Go": 1}, "2026-11-07": {"Go": 50, "Python": 130, "Zig": 5}}
+
+
+def test_daily_totals_split_by_day():
+    d1 = dt.datetime(2026, 11, 6, 23, 58).timestamp()
+    beats = [
+        {"ts": d1, "lang": "Python"},
+        {"ts": d1 + 60, "lang": "Python"},  # 23:59
+        {"ts": d1 + 180, "lang": "Go"},  # 00:01 next day
+        {"ts": d1 + 240, "lang": "Go"},
+    ]
+    days = langstats.daily_totals(beats, 15)
+    assert days == {"2026-11-06": {"Python": 180.0}, "2026-11-07": {"Go": 60.0}}  # a gap counts on its first day
 
 
 # --- A9: auto-publish -------------------------------------------------------

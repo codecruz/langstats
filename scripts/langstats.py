@@ -76,6 +76,7 @@ BAR_STYLES: dict[str, list[str]] = {
     "ascii": ["-", "=", "#"],
 }
 SNIPPET_FILE = "readme-snippet.md"
+CONTRIBUTION_FILE = "shared-contribution.json"
 HEARTBEAT_FILE_RE = re.compile(r"^(\d{4}-\d{2}-\d{2})\.jsonl$")
 
 DEFAULTS: dict[str, Any] = {
@@ -100,6 +101,8 @@ DEFAULTS: dict[str, Any] = {
     "auto_publish": False,
     "publish_interval_hours": 12,
     "commit_message": "chore(readme): update language stats",
+    "data_file": ".langstats/stats.json",
+    "data_repo": None,
     "retention_days": 365,
 }
 
@@ -173,6 +176,18 @@ SCHEMA: dict[str, tuple[str, Callable[[Any], bool], str]] = {
     "publish_interval_hours": ("num", lambda v: _is_num(v) and v >= 0, "a number >= 0"),
     "commit_message": ("str", _nonempty_str, "a non-empty string"),
     "retention_days": ("int", lambda v: _is_int(v) and v >= 0, "an integer >= 0 (0 = keep forever)"),
+    "data_file": (
+        "str",
+        lambda v: (
+            isinstance(v, str) and re.fullmatch(r"[\w.-]+(/[\w.-]+)*\.json", v) is not None and ".." not in v.split("/")
+        ),
+        "a relative .json path inside the repository, like .langstats/stats.json",
+    ),
+    "data_repo": (
+        "nstr",
+        lambda v: v is None or (isinstance(v, str) and re.fullmatch(r"[\w.-]+/[\w.-]+", v) is not None),
+        '"owner/repo" (for example a private repository) or null',
+    ),
 }
 
 assert set(SCHEMA) == set(DEFAULTS)
@@ -647,23 +662,161 @@ def date_range(range_days: int, heartbeats: list[dict[str, Any]], today: dt.date
     return start, today
 
 
-def render_block(home: Path, cfg: dict[str, Any], today: dt.date | None = None) -> str | None:
+def render_totals(totals: dict[str, float], cfg: dict[str, Any], start: dt.date, end: dt.date) -> str | None:
     """The text that goes inside ```txt for the README, or None without data."""
-    today = today or dt.date.today()
-    beats = read_heartbeats(home, cfg["range_days"], today)
-    totals = aggregate(beats, cfg["timeout_minutes"], cfg["exclude_languages"])
+    excluded = set(cfg["exclude_languages"])
+    totals = {lang: secs for lang, secs in totals.items() if lang not in excluded}
     rows = summarize(totals, cfg["top_n"], cfg["min_percent"])
     if not rows:
         return None
     lines = []
     if cfg["show_title"]:
-        start, end = date_range(cfg["range_days"], beats, today)
         lines.append("From: %s - To: %s" % (_long_date(start), _long_date(end)))
         if cfg["show_time"]:
             lines.append("Total Time: %s" % format_duration(sum(totals.values())))
         lines.append("")
     lines.extend(render_rows(rows, cfg))
     return "\n".join(lines)
+
+
+def render_block(home: Path, cfg: dict[str, Any], today: dt.date | None = None) -> str | None:
+    """The block from this computer's data only (manual mode, previews)."""
+    today = today or dt.date.today()
+    beats = read_heartbeats(home, cfg["range_days"], today)
+    totals = aggregate(beats, cfg["timeout_minutes"], cfg["exclude_languages"])
+    start, end = date_range(cfg["range_days"], beats, today)
+    return render_totals(totals, cfg, start, end)
+
+
+# --------------------------------------------------------------------------- #
+# Several computers
+#
+# The repository holds ONE anonymous file (data_file) with the combined daily
+# totals of all your computers: {day: {language: seconds}}. It has no computer
+# ids, host names, projects or paths, and only keeps the days the block shows.
+# Each computer remembers locally what it added last time (CONTRIBUTION_FILE)
+# and, when publishing, replaces only its own share: shared - previous +
+# current. So computers add up instead of overwriting each other.
+# --------------------------------------------------------------------------- #
+
+
+class StoreConflict(Exception):
+    """Someone else changed the repository while we were publishing."""
+
+
+def daily_totals(heartbeats: list[dict[str, Any]], timeout_minutes: float) -> dict[str, dict[str, float]]:
+    """{day: {language: seconds}}; a gap counts on the day of its first heartbeat."""
+    limit = timeout_minutes * 60
+    ordered = sorted(heartbeats, key=lambda hb: hb["ts"])
+    days: dict[str, dict[str, float]] = {}
+    for current, nxt in zip(ordered, ordered[1:]):
+        gap = nxt["ts"] - current["ts"]
+        if 0 < gap <= limit:
+            day = dt.date.fromtimestamp(current["ts"]).isoformat()
+            langs = days.setdefault(day, {})
+            langs[current["lang"]] = langs.get(current["lang"], 0.0) + gap
+    return days
+
+
+def share_window_days(cfg: dict[str, Any]) -> int:
+    """How many days the shared file keeps (0 = all): only what the block shows."""
+    return cfg["range_days"] if cfg["range_days"] > 0 else cfg["retention_days"]
+
+
+def window_start(days: int, today: dt.date) -> str | None:
+    return None if days == 0 else (today - dt.timedelta(days=days - 1)).isoformat()
+
+
+def local_daily(home: Path, cfg: dict[str, Any], today: dt.date) -> dict[str, dict[str, int]]:
+    """This computer's whole seconds per day and language, inside the window."""
+    window = share_window_days(cfg)
+    start = window_start(window, today)
+    beats = read_heartbeats(home, window, today)
+    out = {}
+    for day, langs in daily_totals(beats, cfg["timeout_minutes"]).items():
+        if start and day < start:
+            continue
+        rounded = {lang: int(round(secs)) for lang, secs in langs.items() if round(secs) > 0}
+        if rounded:
+            out[day] = rounded
+    return out
+
+
+def parse_daily(text: str | None) -> dict[str, dict[str, int]]:
+    """Read a {"days": {...}} file; anything malformed is skipped."""
+    try:
+        data = json.loads(text or "")
+    except ValueError:
+        return {}
+    days = data.get("days") if isinstance(data, dict) else None
+    out: dict[str, dict[str, int]] = {}
+    if not isinstance(days, dict):
+        return out
+    for day, langs in days.items():
+        if not (isinstance(day, str) and re.fullmatch(r"\d{4}-\d{2}-\d{2}", day) and isinstance(langs, dict)):
+            continue
+        clean = {
+            lang: int(secs) for lang, secs in langs.items() if isinstance(lang, str) and _is_num(secs) and secs > 0
+        }
+        if clean:
+            out[day] = clean
+    return out
+
+
+def daily_json(days: dict[str, dict[str, int]]) -> str:
+    data = {"v": SCHEMA_VERSION, "days": days}
+    return json.dumps(data, ensure_ascii=False, sort_keys=True, separators=(",", ":")) + "\n"
+
+
+def combine(
+    shared: dict[str, dict[str, int]],
+    previous: dict[str, dict[str, int]],
+    current: dict[str, dict[str, int]],
+    start: str | None,
+) -> dict[str, dict[str, int]]:
+    """shared - previous + current, per day and language, dropping old days."""
+    out: dict[str, dict[str, int]] = {}
+    for day in sorted(set(shared) | set(current)):
+        if start and day < start:
+            continue
+        s, p, c = shared.get(day, {}), previous.get(day, {}), current.get(day, {})
+        langs = {}
+        for lang in sorted(set(s) | set(c)):
+            value = s.get(lang, 0) - p.get(lang, 0) + c.get(lang, 0)
+            if value > 0:
+                langs[lang] = value
+        if langs:
+            out[day] = langs
+    return out
+
+
+def totals_in_range(
+    days: dict[str, dict[str, int]], range_days: int, today: dt.date
+) -> tuple[dict[str, float], dt.date | None]:
+    start = window_start(range_days, today)
+    totals: dict[str, float] = {}
+    earliest = None
+    for day, langs in days.items():
+        if start and day < start:
+            continue
+        earliest = day if earliest is None or day < earliest else earliest
+        for lang, secs in langs.items():
+            totals[lang] = totals.get(lang, 0.0) + secs
+    return totals, (dt.date.fromisoformat(earliest) if earliest else None)
+
+
+def read_contribution(home: Path) -> dict[str, dict[str, int]]:
+    try:
+        return parse_daily((home / CONTRIBUTION_FILE).read_text(encoding="utf-8"))
+    except OSError:
+        return {}
+
+
+def save_contribution(home: Path, days: dict[str, dict[str, int]]) -> None:
+    home.mkdir(parents=True, exist_ok=True)
+    tmp = home / (CONTRIBUTION_FILE + ".tmp")
+    tmp.write_text(daily_json(days), encoding="utf-8")
+    os.replace(str(tmp), str(home / CONTRIBUTION_FILE))
 
 
 _MONTHS = [
@@ -829,49 +982,149 @@ def _has_upstream(repo: Path) -> bool:
     return proc.returncode == 0
 
 
-def _gh_get(repo: str, path: str) -> tuple[str, str]:
+def _gh_read(repo: str, path: str) -> tuple[str | None, str | None]:
+    """(text, sha) of a file through the GitHub API, or (None, None) if missing."""
     import base64
 
     proc = run(["gh", "api", "repos/%s/contents/%s" % (repo, path)], check=False)
     if proc.returncode != 0:
         detail = (proc.stderr or proc.stdout).strip()
         if "Not Found" in detail or "404" in detail:
-            raise LangstatsError(
-                "%s/%s was not found. For a profile README, create the public repository %s "
-                "with a README.md (https://github.com/new), or set readme_repo." % (repo, path, repo)
-            )
+            return None, None
         raise LangstatsError("could not read %s/%s from GitHub: %s" % (repo, path, detail))
     data = json.loads(proc.stdout)
-    content = base64.b64decode(data.get("content", "")).decode("utf-8")
-    return content, data["sha"]
+    if not isinstance(data, dict):
+        return None, None
+    return base64.b64decode(data.get("content", "")).decode("utf-8"), data["sha"]
 
 
-def _gh_put(repo: str, path: str, text: str, sha: str, message: str) -> None:
+def _gh_list(repo: str, directory: str) -> list[str]:
+    """File names in a folder of the repository ([] if it does not exist)."""
+    proc = run(["gh", "api", "repos/%s/contents/%s" % (repo, directory)], check=False)
+    if proc.returncode != 0:
+        return []
+    data = json.loads(proc.stdout)
+    return (
+        sorted(x["name"] for x in data if isinstance(x, dict) and x.get("type") == "file")
+        if isinstance(data, list)
+        else []
+    )
+
+
+def _gh_get(repo: str, path: str) -> tuple[str, str]:
+    text, sha = _gh_read(repo, path)
+    if text is None or sha is None:
+        raise LangstatsError(
+            "%s/%s was not found. For a profile README, create the public repository %s "
+            "with a README.md (https://github.com/new), or set readme_repo." % (repo, path, repo)
+        )
+    return text, sha
+
+
+def _gh_put(repo: str, path: str, text: str, sha: str | None, message: str) -> None:
     import base64
 
-    body = json.dumps(
-        {"message": message, "content": base64.b64encode(text.encode("utf-8")).decode("ascii"), "sha": sha}
+    body: dict[str, Any] = {"message": message, "content": base64.b64encode(text.encode("utf-8")).decode("ascii")}
+    if sha:
+        body["sha"] = sha
+    proc = run(
+        ["gh", "api", "-X", "PUT", "repos/%s/contents/%s" % (repo, path), "--input", "-"],
+        input_text=json.dumps(body),
+        check=False,
     )
-    run(["gh", "api", "-X", "PUT", "repos/%s/contents/%s" % (repo, path), "--input", "-"], input_text=body)
+    if proc.returncode != 0:
+        detail = (proc.stderr or proc.stdout).strip()
+        if "409" in detail or "does not match" in detail:
+            raise StoreConflict(detail)
+        raise LangstatsError("could not update %s/%s on GitHub: %s" % (repo, path, detail))
 
 
-def publish(home: Path, cfg: dict[str, Any], dry_run: bool = False, out=None) -> str:
+class GitStore:
+    """The README repository as a local clone, published with git."""
+
+    def __init__(self, repo: Path):
+        self.repo = repo
+        self.upstream = _has_upstream(repo)
+
+    def describe(self) -> str:
+        return "local clone %s" % self.repo
+
+    def sync(self) -> None:
+        if self.upstream:
+            run(["git", "pull", "--ff-only", "--quiet"], cwd=self.repo)
+
+    def read(self, path: str) -> tuple[str | None, str | None]:
+        file = self.repo / path
+        if not file.is_file():
+            return None, None
+        with open(str(file), encoding="utf-8", newline="") as fh:
+            return fh.read(), None
+
+    def list_dir(self, directory: str) -> list[str]:
+        folder = self.repo / directory
+        return sorted(p.name for p in folder.iterdir() if p.is_file()) if folder.is_dir() else []
+
+    def commit(self, changes: dict[str, tuple[str, str | None]], message: str) -> str:
+        for path, (text, _) in changes.items():
+            file = self.repo / path
+            file.parent.mkdir(parents=True, exist_ok=True)
+            with open(str(file), "w", encoding="utf-8", newline="") as fh:
+                fh.write(text)
+        paths = list(changes)
+        run(["git", "add", "--", *paths], cwd=self.repo)
+        run(["git", "commit", "--quiet", "-m", message, "--", *paths], cwd=self.repo)
+        if not self.upstream:
+            return "committed (no upstream to push to)"
+        if run(["git", "push", "--quiet"], cwd=self.repo, check=False).returncode != 0:
+            # another computer pushed meanwhile: drop our commit and start over
+            run(["git", "reset", "--quiet", "--keep", "HEAD~1"], cwd=self.repo)
+            raise StoreConflict("push rejected")
+        return "committed and pushed"
+
+
+class GhStore:
+    """The README repository on GitHub, published through the gh CLI."""
+
+    def __init__(self, repo: str):
+        self.repo = repo
+
+    def describe(self) -> str:
+        return "github.com/%s" % self.repo
+
+    def sync(self) -> None:
+        pass
+
+    def read(self, path: str) -> tuple[str | None, str | None]:
+        return _gh_read(self.repo, path)
+
+    def list_dir(self, directory: str) -> list[str]:
+        return _gh_list(self.repo, directory)
+
+    def commit(self, changes: dict[str, tuple[str, str | None]], message: str) -> str:
+        for path, (text, sha) in changes.items():  # data first, README last
+            _gh_put(self.repo, path, text, sha, message)
+        return "updated on GitHub"
+
+
+def open_store(mode: str, target: Any):
+    return GitStore(target) if mode == "git" else GhStore(target)
+
+
+def publish(home: Path, cfg: dict[str, Any], dry_run: bool = False, out=None, today: dt.date | None = None) -> str:
     """Returns "dry-run", "no-data", "manual", "unchanged" or "published"."""
     out = out or sys.stdout
+    today = today or dt.date.today()
     mode, target = resolve_target(cfg)
 
-    block = render_block(home, cfg)
-    if block is None:
-        out.write("langstats: no activity in the configured range; nothing to publish.\n")
-        return "no-data"
-
-    if dry_run:
-        where = {"git": "local clone %s" % target, "gh": "github.com/%s" % target, "manual": "manual (copy and paste)"}
-        out.write("langstats: dry run, target: %s/%s\n" % (where[mode], "" if mode == "manual" else cfg["readme_file"]))
-        out.write("```txt\n%s\n```\n" % block)
-        return "dry-run"
-
     if mode == "manual":
+        block = render_block(home, cfg, today)
+        if block is None:
+            out.write("langstats: no activity in the configured range; nothing to publish.\n")
+            return "no-data"
+        if dry_run:
+            out.write("langstats: dry run, target: manual (copy and paste), this computer only\n")
+            out.write("```txt\n%s\n```\n" % block)
+            return "dry-run"
         snippet = write_snippet(home, cfg, block)
         out.write(
             "langstats: GitHub is not connected, so nothing was published.\n"
@@ -881,37 +1134,72 @@ def publish(home: Path, cfg: dict[str, Any], dry_run: bool = False, out=None) ->
         )
         return "manual"
 
-    if mode == "git":
-        repo = target
-        if _has_upstream(repo):
-            run(["git", "pull", "--ff-only", "--quiet"], cwd=repo)
-        readme = repo / cfg["readme_file"]
-        if not readme.exists():
-            raise LangstatsError("%s does not exist." % readme)
-        with open(str(readme), encoding="utf-8", newline="") as fh:
-            text = fh.read()
-        new = replace_section(text, cfg["section"], block)
-        if new == text:
-            out.write("langstats: README already up to date.\n")
-            return "unchanged"
-        with open(str(readme), "w", encoding="utf-8", newline="") as fh:
-            fh.write(new)
-        run(["git", "add", "--", cfg["readme_file"]], cwd=repo)
-        run(["git", "commit", "--quiet", "-m", cfg["commit_message"], "--", cfg["readme_file"]], cwd=repo)
-        if _has_upstream(repo):
-            run(["git", "push", "--quiet"], cwd=repo)
-            out.write("langstats: README updated and pushed.\n")
-        else:
-            out.write("langstats: README updated and committed (no upstream to push to).\n")
+    store = open_store(mode, target)
+    data_store = GhStore(cfg["data_repo"]) if cfg["data_repo"] else store
+    for _ in range(3):
+        try:
+            return _publish_shared(home, cfg, store, data_store, dry_run, out, today)
+        except StoreConflict:
+            continue  # another computer published at the same moment: read again
+    raise LangstatsError("the repository kept changing while publishing; try again in a moment.")
+
+
+def _publish_shared(home: Path, cfg: dict[str, Any], store, data_store, dry_run: bool, out, today: dt.date) -> str:
+    if not dry_run:
+        store.sync()
+        if data_store is not store:
+            data_store.sync()
+    shared_text, shared_sha = data_store.read(cfg["data_file"])
+    current = local_daily(home, cfg, today)
+    start_shared = window_start(share_window_days(cfg), today)
+    combined = combine(parse_daily(shared_text), read_contribution(home), current, start_shared)
+    totals, earliest = totals_in_range(combined, cfg["range_days"], today)
+    start = (earliest or today) if cfg["range_days"] == 0 else today - dt.timedelta(days=cfg["range_days"] - 1)
+    block = render_totals(totals, cfg, start, today)
+    if block is None:
+        out.write("langstats: no activity in the configured range; nothing to publish.\n")
+        return "no-data"
+
+    if dry_run:
+        out.write(
+            "langstats: dry run, target: %s/%s, all your computers combined\n" % (store.describe(), cfg["readme_file"])
+        )
+        out.write("```txt\n%s\n```\n" % block)
+        return "dry-run"
+
+    readme_text, readme_sha = store.read(cfg["readme_file"])
+    if readme_text is None:
+        if isinstance(store, GhStore):
+            _gh_get(store.repo, cfg["readme_file"])  # raises the friendly "create your profile repo" error
+        raise LangstatsError("%s/%s does not exist." % (store.describe(), cfg["readme_file"]))
+    new_readme = replace_section(readme_text, cfg["section"], block)
+    new_shared = daily_json(combined)
+    data_changed = new_shared != shared_text
+    readme_changed = new_readme != readme_text
+    if not data_changed and not readme_changed:
+        save_contribution(home, current)
+        out.write("langstats: README already up to date.\n")
+        return "unchanged"
+
+    if data_store is store and isinstance(store, GitStore):
+        changes: dict[str, tuple[str, str | None]] = {}
+        if data_changed:
+            changes[cfg["data_file"]] = (new_shared, None)
+        if readme_changed:
+            changes[cfg["readme_file"]] = (new_readme, None)
+        how = store.commit(changes, cfg["commit_message"])  # one commit; undone on conflict
+        save_contribution(home, current)
     else:
-        gh_repo = target
-        text, sha = _gh_get(gh_repo, cfg["readme_file"])
-        new = replace_section(text, cfg["section"], block)
-        if new == text:
-            out.write("langstats: README already up to date.\n")
-            return "unchanged"
-        _gh_put(gh_repo, cfg["readme_file"], new, sha, cfg["commit_message"])
-        out.write("langstats: README updated on %s.\n" % gh_repo)
+        how = "updated"
+        if data_changed:
+            how = data_store.commit({cfg["data_file"]: (new_shared, shared_sha)}, cfg["commit_message"])
+        save_contribution(home, current)  # our share is in now: never add it twice
+        if readme_changed:
+            how = store.commit({cfg["readme_file"]: (new_readme, readme_sha)}, cfg["commit_message"])
+    if readme_changed:
+        out.write("langstats: README updated with the stats of all your computers (%s).\n" % how)
+    else:
+        out.write("langstats: README already up to date; shared totals saved (%s).\n" % how)
     return "published"
 
 
@@ -1020,7 +1308,7 @@ def cmd_stats(args: argparse.Namespace) -> int:
     if not rows:
         print("No activity recorded yet. Heartbeats are stored in %s" % heartbeats_dir(home))
         return 0
-    print("Total: %s across %d heartbeats" % (format_duration(sum(totals.values())), len(beats)))
+    print("Total: %s across %d heartbeats (this computer only)" % (format_duration(sum(totals.values())), len(beats)))
     print()
     for line in render_rows(rows, cfg, show_time=True):
         print(line)
@@ -1184,6 +1472,16 @@ def cmd_doctor(args: argparse.Namespace) -> int:
             _check(True, "README file", "%s/%s" % (target, cfg["readme_file"]))
         except LangstatsError as exc:
             good &= _check(False, "README file", str(exc))
+
+    if mode in ("git", "gh"):
+        window = share_window_days(cfg)
+        where = "github.com/%s" % cfg["data_repo"] if cfg["data_repo"] else "the README repository"
+        _check(
+            True,
+            "shared data",
+            "%s in %s: anonymous combined totals of your computers, %s"
+            % (cfg["data_file"], where, "last %d days only" % window if window else "all days"),
+        )
 
     if text is not None:
         start, end = markers(cfg["section"])

@@ -54,3 +54,37 @@ def heartbeat_lines(home):
     for f in sorted(d.glob("*.jsonl")):
         lines += [json.loads(x) for x in f.read_text(encoding="utf-8").splitlines() if x.strip()]
     return lines
+
+
+class FakeGitHub:
+    """In-memory stand-in for the gh-backed helpers: files[repo][path] = text."""
+
+    def __init__(self):
+        self.files = {}
+        self.puts = []
+
+    def read(self, repo, path):
+        text = self.files.get(repo, {}).get(path)
+        return (text, "sha-%d" % hash(text)) if text is not None else (None, None)
+
+    def list(self, repo, directory):
+        prefix = directory.rstrip("/") + "/"
+        return sorted(
+            p[len(prefix) :] for p in self.files.get(repo, {}) if p.startswith(prefix) and "/" not in p[len(prefix) :]
+        )
+
+    def put(self, repo, path, text, sha, message):
+        current = self.files.setdefault(repo, {}).get(path)
+        if sha != (None if current is None else "sha-%d" % hash(current)):
+            raise langstats.StoreConflict("409 sha does not match")
+        self.files[repo][path] = text
+        self.puts.append(path)
+
+
+@pytest.fixture
+def fake_github(monkeypatch):
+    fake = FakeGitHub()
+    monkeypatch.setattr(langstats, "_gh_read", fake.read)
+    monkeypatch.setattr(langstats, "_gh_list", fake.list)
+    monkeypatch.setattr(langstats, "_gh_put", fake.put)
+    return fake

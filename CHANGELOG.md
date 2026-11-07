@@ -7,6 +7,12 @@ and the project uses [Semantic Versioning](https://semver.org/).
 ## [Unreleased]
 
 ### Added
+- Several computers add up instead of overwriting each other. The repository
+  keeps one anonymous file, `.langstats/stats.json`, with the combined seconds per
+  day and language of the days shown (no computer ids, projects or paths; older
+  days are pruned). Each computer replaces only its own share, remembered
+  locally. `data_repo` keeps that file in a separate (private) repository.
+  Concurrent publishes are detected and retried.
 - Configurable bar style: `/langstats:style` lists the styles with a preview
   (`bars`, `flowers` 🌸, `rocket` 🚀, `hearts`, `moon`, `stars`, `dots`, `squares`,
   `ascii`) and sets one by name or with your own symbols, from empty to full.

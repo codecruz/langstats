@@ -28,6 +28,7 @@ Other                           ███▒░░░░░░░░░░░░
 
 - [Quick start](#quick-start)
 - [Publishing: automatic or by hand](#publishing-automatic-or-by-hand)
+- [Several computers](#several-computers)
 - [Bar style](#bar-style)
 - [Commands](#commands)
 - [Configuration](#configuration)
@@ -145,6 +146,44 @@ TypeScript                      ██████░░░░░░░░░░
 GitHub later (`gh auth login`), the next publish updates that same section
 automatically.
 
+## Several computers
+
+If you use Claude Code on more than one computer, install langstats on each one
+and point them at the same repository. Their time **adds up**: publishing from
+one computer never replaces what the others contributed.
+
+How it works, and why it is private:
+
+- The repository gets **one small file**, `.langstats/stats.json`, with the
+  combined minutes of all your computers per day and language:
+
+  ```json
+  {"days":{"2026-11-07":{"Python":5400,"TypeScript":1800}},"v":1}
+  ```
+
+- It holds **no computer names or ids, no projects, no paths and no times of
+  day**. Nobody can tell from it how many computers you have or which one did
+  what.
+- It only keeps **the days shown in the block** (the last 7 by default). Older
+  days are deleted on every publish, so nothing piles up.
+- Each computer remembers, only on itself, what it added last time
+  (`~/.claude/langstats/shared-contribution.json`). When it publishes, it
+  swaps its old share for the new one, so nothing is counted twice.
+
+**Want it secret?** Keep that file in a **private repository** instead of your
+public profile:
+
+```sh
+gh repo create <you>/langstats-data --private
+run config set data_repo <you>/langstats-data
+```
+
+Do the same on every computer. Your public README then only shows the block.
+`/langstats:setup` asks about this and can create the repository for you.
+
+> In manual mode (no GitHub connection) each computer only knows its own data:
+> `/langstats:snippet` shows the stats of the computer you run it on.
+
 ## Bar style
 
 The symbols of the bars are up to you. See every style with a preview:
@@ -247,7 +286,9 @@ value never breaks anything; it is reported and the default is used.
 | `auto_publish` | `false` | Publish when a session ends |
 | `publish_interval_hours` | `12` | Minimum hours between two automatic publishes |
 | `commit_message` | `chore(readme): update language stats` | Message of the commit that updates the README |
-| `retention_days` | `365` | Records older than this are deleted. `0` = keep forever |
+| `retention_days` | `365` | Records on this computer older than this are deleted. `0` = keep forever |
+| `data_file` | `.langstats/stats.json` | File with the combined, anonymous totals of your computers (see [Several computers](#several-computers)) |
+| `data_repo` | none | Keep that file in another repository, for example a private one, `<you>/langstats-data` |
 
 Set the environment variable `LANGSTATS_HOME` to store data somewhere other than
 `~/.claude/langstats`.
@@ -286,9 +327,11 @@ langstats is designed to go unnoticed:
   file per day.
 - Each record holds the time, the language, the project folder name, the tool
   and a short session id. **File paths and file contents are never stored.**
-- The only thing that leaves your computer is the stats block, and only to your
-  own repository, when you publish. In manual mode, or while GitHub is not
-  connected, nothing is sent at all.
+- When you publish, two things go to your own repository: the stats block and
+  `.langstats/stats.json`, the combined minutes per day and language of the days
+  shown, with no computer ids, projects or paths. Put that file in a private
+  repository with `data_repo` if you prefer (see [Several computers](#several-computers)).
+- In manual mode, or while GitHub is not connected, nothing is sent at all.
 
 ## Troubleshooting
 
@@ -306,6 +349,7 @@ run doctor
 | "the README has no … markers" | Add the two marker lines where you want the stats, or let `/langstats:setup` add them. |
 | The block keeps changing back | Another tool writes to the same section. Use another `section`. |
 | "Python 3.9+ not found" | Install Python 3.9 or newer, or set `LANGSTATS_PYTHON` to the path of your interpreter. |
+| Stats look doubled after reinstalling | A computer that lost `~/.claude/langstats/` cannot remove its old share; it disappears by itself once those days leave the range (7 days by default). |
 | Auto-publish does nothing | Check `~/.claude/langstats/publish.log`. It runs at most once every `publish_interval_hours`. |
 
 ## Uninstall
