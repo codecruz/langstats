@@ -62,7 +62,9 @@ def test_format_duration(seconds, text):
 def test_replace_section_format():
     text = "# Hi\n\n<!--START_SECTION:langstats-->\nold stuff\n<!--END_SECTION:langstats-->\n\nbye\n"
     new = langstats.replace_section(text, "langstats", "A\nB")
-    assert new == ("# Hi\n\n<!--START_SECTION:langstats-->\n\n```txt\nA\nB\n```\n\n<!--END_SECTION:langstats-->\n\nbye\n")
+    assert new == (
+        "# Hi\n\n<!--START_SECTION:langstats-->\n\n```txt\nA\nB\n```\n\n<!--END_SECTION:langstats-->\n\nbye\n"
+    )
     # idempotent
     assert langstats.replace_section(new, "langstats", "A\nB") == new
 
@@ -76,7 +78,11 @@ def test_replace_section_only_named_section():
 
 @pytest.mark.parametrize(
     "text",
-    ["no markers", "<!--START_SECTION:langstats--> only start", "<!--END_SECTION:langstats--><!--START_SECTION:langstats-->"],
+    [
+        "no markers",
+        "<!--START_SECTION:langstats--> only start",
+        "<!--END_SECTION:langstats--><!--START_SECTION:langstats-->",
+    ],
 )
 def test_replace_section_missing_markers(text):
     with pytest.raises(langstats.LangstatsError, match="START_SECTION:langstats"):
