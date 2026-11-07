@@ -148,11 +148,19 @@ automatically.
 
 ## Several computers
 
-If you use Claude Code on more than one computer, install langstats on each one
-and point them at the same repository. Their time **adds up**: publishing from
-one computer never replaces what the others contributed.
+**By default, only the percentages block is uploaded**, and nothing else. Each
+computer publishes the stats of its own work, so if you use several computers,
+the last one to publish replaces the block.
 
-How it works, and why it is private:
+To **add up several computers** instead, turn on `share_data` on each of them:
+
+```sh
+run config set share_data true
+```
+
+Adding up needs to know how much time each language took, because percentages
+alone cannot be combined (50 % of an hour and 50 % of five minutes are not the
+same). So with `share_data` on:
 
 - The repository gets **one small file**, `.langstats/stats.json`, with the
   combined minutes of all your computers per day and language:
@@ -170,8 +178,8 @@ How it works, and why it is private:
   (`~/.claude/langstats/shared-contribution.json`). When it publishes, it
   swaps its old share for the new one, so nothing is counted twice.
 
-**Want it secret?** Keep that file in a **private repository** instead of your
-public profile:
+**Recommended:** keep that file in a **private repository**, so your public
+profile still shows only percentages:
 
 ```sh
 gh repo create <you>/langstats-data --private
@@ -287,6 +295,7 @@ value never breaks anything; it is reported and the default is used.
 | `publish_interval_hours` | `12` | Minimum hours between two automatic publishes |
 | `commit_message` | `chore(readme): update language stats` | Message of the commit that updates the README |
 | `retention_days` | `365` | Records on this computer older than this are deleted. `0` = keep forever |
+| `share_data` | `false` | Add up several computers. Off: only the percentages block is uploaded. On: also a small file with the combined minutes (see [Several computers](#several-computers)) |
 | `data_file` | `.langstats/stats.json` | File with the combined, anonymous totals of your computers (see [Several computers](#several-computers)) |
 | `data_repo` | none | Keep that file in another repository, for example a private one, `<you>/langstats-data` |
 
@@ -327,10 +336,12 @@ langstats is designed to go unnoticed:
   file per day.
 - Each record holds the time, the language, the project folder name, the tool
   and a short session id. **File paths and file contents are never stored.**
-- When you publish, two things go to your own repository: the stats block and
-  `.langstats/stats.json`, the combined minutes per day and language of the days
-  shown, with no computer ids, projects or paths. Put that file in a private
-  repository with `data_repo` if you prefer (see [Several computers](#several-computers)).
+- When you publish, **only the stats block goes to your repository**: language
+  names and percentages, no times.
+- Only if you turn on `share_data` to add up several computers, a small file with
+  the combined minutes per day and language is uploaded too, with no computer
+  ids, projects or paths, ideally to a private repository (see
+  [Several computers](#several-computers)).
 - In manual mode, or while GitHub is not connected, nothing is sent at all.
 
 ## Troubleshooting
@@ -349,6 +360,7 @@ run doctor
 | "the README has no … markers" | Add the two marker lines where you want the stats, or let `/langstats:setup` add them. |
 | The block keeps changing back | Another tool writes to the same section. Use another `section`. |
 | "Python 3.9+ not found" | Install Python 3.9 or newer, or set `LANGSTATS_PYTHON` to the path of your interpreter. |
+| Each computer replaces the other's stats | That is the default. Turn on `share_data` on every computer to add them up (see [Several computers](#several-computers)). |
 | Stats look doubled after reinstalling | A computer that lost `~/.claude/langstats/` cannot remove its old share; it disappears by itself once those days leave the range (7 days by default). |
 | Auto-publish does nothing | Check `~/.claude/langstats/publish.log`. It runs at most once every `publish_interval_hours`. |
 

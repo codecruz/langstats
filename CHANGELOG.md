@@ -7,7 +7,8 @@ and the project uses [Semantic Versioning](https://semver.org/).
 ## [Unreleased]
 
 ### Added
-- Several computers add up instead of overwriting each other. The repository
+- Optional `share_data` (off by default, so only the percentages block is ever
+  uploaded): several computers add up instead of overwriting each other. The repository
   keeps one anonymous file, `.langstats/stats.json`, with the combined seconds per
   day and language of the days shown (no computer ids, projects or paths; older
   days are pruned). Each computer replaces only its own share, remembered

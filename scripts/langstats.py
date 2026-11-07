@@ -101,6 +101,7 @@ DEFAULTS: dict[str, Any] = {
     "auto_publish": False,
     "publish_interval_hours": 12,
     "commit_message": "chore(readme): update language stats",
+    "share_data": False,
     "data_file": ".langstats/stats.json",
     "data_repo": None,
     "retention_days": 365,
@@ -176,6 +177,7 @@ SCHEMA: dict[str, tuple[str, Callable[[Any], bool], str]] = {
     "publish_interval_hours": ("num", lambda v: _is_num(v) and v >= 0, "a number >= 0"),
     "commit_message": ("str", _nonempty_str, "a non-empty string"),
     "retention_days": ("int", lambda v: _is_int(v) and v >= 0, "an integer >= 0 (0 = keep forever)"),
+    "share_data": ("bool", lambda v: isinstance(v, bool), "true or false"),
     "data_file": (
         "str",
         lambda v: (
@@ -1138,10 +1140,38 @@ def publish(home: Path, cfg: dict[str, Any], dry_run: bool = False, out=None, to
     data_store = GhStore(cfg["data_repo"]) if cfg["data_repo"] else store
     for _ in range(3):
         try:
+            if not cfg["share_data"]:
+                return _publish_local(home, cfg, store, dry_run, out, today)
             return _publish_shared(home, cfg, store, data_store, dry_run, out, today)
         except StoreConflict:
             continue  # another computer published at the same moment: read again
     raise LangstatsError("the repository kept changing while publishing; try again in a moment.")
+
+
+def _publish_local(home: Path, cfg: dict[str, Any], store, dry_run: bool, out, today: dt.date) -> str:
+    """share_data off: only the percentages block is uploaded, from this computer's data."""
+    if not dry_run:
+        store.sync()
+    block = render_block(home, cfg, today)
+    if block is None:
+        out.write("langstats: no activity in the configured range; nothing to publish.\n")
+        return "no-data"
+    if dry_run:
+        out.write("langstats: dry run, target: %s/%s, this computer only\n" % (store.describe(), cfg["readme_file"]))
+        out.write("```txt\n%s\n```\n" % block)
+        return "dry-run"
+    readme_text, readme_sha = store.read(cfg["readme_file"])
+    if readme_text is None:
+        if isinstance(store, GhStore):
+            _gh_get(store.repo, cfg["readme_file"])
+        raise LangstatsError("%s/%s does not exist." % (store.describe(), cfg["readme_file"]))
+    new_readme = replace_section(readme_text, cfg["section"], block)
+    if new_readme == readme_text:
+        out.write("langstats: README already up to date.\n")
+        return "unchanged"
+    how = store.commit({cfg["readme_file"]: (new_readme, readme_sha)}, cfg["commit_message"])
+    out.write("langstats: README updated (%s).\n" % how)
+    return "published"
 
 
 def _publish_shared(home: Path, cfg: dict[str, Any], store, data_store, dry_run: bool, out, today: dt.date) -> str:
@@ -1473,7 +1503,9 @@ def cmd_doctor(args: argparse.Namespace) -> int:
         except LangstatsError as exc:
             good &= _check(False, "README file", str(exc))
 
-    if mode in ("git", "gh"):
+    if mode in ("git", "gh") and not cfg["share_data"]:
+        _check(True, "shared data", "off: only the percentages block is uploaded; stats from this computer only")
+    elif mode in ("git", "gh"):
         window = share_window_days(cfg)
         where = "github.com/%s" % cfg["data_repo"] if cfg["data_repo"] else "the README repository"
         _check(

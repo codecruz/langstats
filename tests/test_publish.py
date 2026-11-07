@@ -79,8 +79,7 @@ def test_a6_publish_git_only_touches_section_and_is_idempotent(home, profile_rep
     assert "Python" in text and "Go" in text
     assert commit_count(bare) == 2  # one commit, pushed to the remote
     assert git("log", "-1", "--format=%s", cwd=bare).strip() == "chore(readme): update language stats"
-    changed = git("diff", "HEAD~1", "--name-only", cwd=clone).split()
-    assert sorted(changed) == [".langstats/stats.json", "README.md"]
+    assert git("diff", "HEAD~1", "--name-only", cwd=clone).split() == ["README.md"]  # nothing else uploaded
 
     assert langstats.publish(home, cfg) == "unchanged"
     assert commit_count(bare) == 2
@@ -221,12 +220,31 @@ def test_gh_mode(home, write_config, fake_github):
     fake_github.files["me/me"] = {"README.md": README}
     cfg = langstats.load_config(home)
     assert langstats.publish(home, cfg) == "published"
-    files = fake_github.files["me/me"]
-    assert "```txt" in files["README.md"]
-    assert ".langstats/stats.json" in files
+    assert set(fake_github.files["me/me"]) == {"README.md"}  # by default only the block is uploaded
+    assert "```txt" in fake_github.files["me/me"]["README.md"]
+    assert langstats.publish(home, cfg) == "unchanged"
+    assert fake_github.puts == ["README.md"]
+
+
+def test_gh_mode_with_shared_data(home, write_config, fake_github):
+    write_config(mode="gh", readme_repo="me/me", share_data=True)
+    add_heartbeats(home, some_beats())
+    fake_github.files["me/me"] = {"README.md": README}
+    cfg = langstats.load_config(home)
+    assert langstats.publish(home, cfg) == "published"
     assert fake_github.puts == [".langstats/stats.json", "README.md"]  # data first
     assert langstats.publish(home, cfg) == "unchanged"
     assert len(fake_github.puts) == 2
+
+
+def test_without_sharing_the_block_has_only_percentages(home, write_config, fake_github):
+    write_config(mode="gh", readme_repo="me/me")
+    add_heartbeats(home, some_beats())
+    fake_github.files["me/me"] = {"README.md": README}
+    langstats.publish(home, langstats.load_config(home))
+    block = fake_github.files["me/me"]["README.md"]
+    assert "%" in block and "min" not in block and "hr" not in block
+    assert not (home / "shared-contribution.json").exists()
 
 
 def test_gh_missing_profile_repo_explains_how_to_create_it(home, write_config, fake_github):
@@ -244,7 +262,8 @@ def computer(tmp_path, name, lang, minutes=10, config=None):
     h = tmp_path / name
     start = time.time() - 3000
     add_heartbeats(h, [{"ts": start + i * 60, "lang": lang} for i in range(minutes + 1)])
-    (h / "config.json").write_text(json.dumps(config or {"mode": "gh", "readme_repo": "me/me"}), encoding="utf-8")
+    cfg = dict(config or {"mode": "gh", "readme_repo": "me/me"}, share_data=True)
+    (h / "config.json").write_text(json.dumps(cfg), encoding="utf-8")
     return h
 
 
@@ -340,7 +359,7 @@ def test_gh_conflict_is_retried(tmp_path, monkeypatch, fake_github):
 
 
 def test_shared_file_is_anonymous(home, write_config, fake_github):
-    write_config(mode="gh", readme_repo="me/me")
+    write_config(mode="gh", readme_repo="me/me", share_data=True)
     fake_github.files["me/me"] = {"README.md": README}
     start = time.time() - 600
     add_heartbeats(
@@ -360,7 +379,7 @@ def test_shared_file_is_anonymous(home, write_config, fake_github):
 
 
 def test_shared_file_keeps_only_the_days_shown(home, write_config, fake_github):
-    write_config(mode="gh", readme_repo="me/me", range_days=7)
+    write_config(mode="gh", readme_repo="me/me", share_data=True, range_days=7)
     old = (dt.date.today() - dt.timedelta(days=30)).isoformat()
     fake_github.files["me/me"] = {
         "README.md": README,
@@ -374,7 +393,7 @@ def test_shared_file_keeps_only_the_days_shown(home, write_config, fake_github):
 
 
 def test_corrupt_shared_file_is_replaced(home, write_config, fake_github):
-    write_config(mode="gh", readme_repo="me/me")
+    write_config(mode="gh", readme_repo="me/me", share_data=True)
     fake_github.files["me/me"] = {"README.md": README, ".langstats/stats.json": "{not json"}
     add_heartbeats(home, some_beats())
     assert langstats.publish(home, langstats.load_config(home)) == "published"
@@ -382,7 +401,7 @@ def test_corrupt_shared_file_is_replaced(home, write_config, fake_github):
 
 
 def test_private_data_repo(home, write_config, fake_github):
-    write_config(mode="gh", readme_repo="me/me", data_repo="me/langstats-data")
+    write_config(mode="gh", readme_repo="me/me", share_data=True, data_repo="me/langstats-data")
     fake_github.files["me/me"] = {"README.md": README}
     fake_github.files["me/langstats-data"] = {}
     add_heartbeats(home, some_beats())
@@ -460,3 +479,22 @@ def test_spawn_detached_does_not_wait(tmp_path):
     t0 = time.time()
     langstats.spawn_detached([sys.executable, "-c", "import time; time.sleep(3)"], tmp_path / "log.txt")
     assert time.time() - t0 < 2
+
+
+def test_computers_replace_each_other_without_sharing(tmp_path, monkeypatch, fake_github):
+    """share_data off (default): each computer publishes its own block only."""
+    fake_github.files["me/me"] = {"README.md": README}
+    for name, lang in (("laptop", "Python"), ("desktop", "Rust")):
+        h = tmp_path / name
+        add_heartbeats(
+            h,
+            some_beats()
+            if lang == "Python"
+            else [{"ts": time.time() - 99, "lang": "Rust"}, {"ts": time.time() - 9, "lang": "Rust"}],
+        )
+        (h / "config.json").write_text(json.dumps({"mode": "gh", "readme_repo": "me/me"}), encoding="utf-8")
+        monkeypatch.setenv("LANGSTATS_HOME", str(h))
+        langstats.publish(h, langstats.load_config(h))
+    readme = fake_github.files["me/me"]["README.md"]
+    assert "Rust" in readme and "Python" not in readme
+    assert set(fake_github.files["me/me"]) == {"README.md"}

@@ -148,11 +148,19 @@ esa misma sección automáticamente.
 
 ## Varios ordenadores
 
-Si usas Claude Code en más de un ordenador, instala langstats en cada uno y
-apúntalos al mismo repositorio. Su tiempo **se suma**: publicar desde un
-ordenador nunca sustituye lo que aportaron los demás.
+**Por defecto solo se sube el bloque de porcentajes**, y nada más. Cada
+ordenador publica las estadísticas de su propio trabajo, así que si usas varios
+ordenadores, el último en publicar sustituye el bloque.
 
-Cómo funciona y por qué es privado:
+Para **sumar varios ordenadores**, activa `share_data` en cada uno:
+
+```sh
+run config set share_data true
+```
+
+Para sumar hace falta saber cuánto tiempo llevó cada lenguaje, porque los
+porcentajes solos no se pueden combinar (el 50 % de una hora no es lo mismo que
+el 50 % de cinco minutos). Así que con `share_data` activado:
 
 - El repositorio recibe **un único archivo pequeño**, `.langstats/stats.json`,
   con los minutos sumados de todos tus ordenadores por día y lenguaje:
@@ -170,8 +178,8 @@ Cómo funciona y por qué es privado:
   (`~/.claude/langstats/shared-contribution.json`). Al publicar, cambia su
   aportación anterior por la nueva, así que nada se cuenta dos veces.
 
-**¿Lo quieres secreto?** Guarda ese archivo en un **repositorio privado** en vez
-de en tu perfil público:
+**Recomendado:** guarda ese archivo en un **repositorio privado**, para que tu
+perfil público siga mostrando solo porcentajes:
 
 ```sh
 gh repo create <tú>/langstats-data --private
@@ -289,6 +297,7 @@ válido nunca rompe nada: se avisa y se usa el valor por defecto.
 | `publish_interval_hours` | `12` | Horas mínimas entre dos publicaciones automáticas |
 | `commit_message` | `chore(readme): update language stats` | Mensaje del commit que actualiza el README |
 | `retention_days` | `365` | Los registros de este ordenador más antiguos se borran. `0` = guardarlos siempre |
+| `share_data` | `false` | Suma varios ordenadores. Desactivado: solo se sube el bloque de porcentajes. Activado: también un archivo pequeño con los minutos sumados (ver [Varios ordenadores](#varios-ordenadores)) |
 | `data_file` | `.langstats/stats.json` | Archivo con los totales sumados y anónimos de tus ordenadores (ver [Varios ordenadores](#varios-ordenadores)) |
 | `data_repo` | ninguno | Guarda ese archivo en otro repositorio, por ejemplo uno privado, `<tú>/langstats-data` |
 
@@ -330,11 +339,12 @@ langstats está pensado para que no se note:
 - Cada registro guarda la hora, el lenguaje, el nombre de la carpeta del
   proyecto, la herramienta y un identificador corto de sesión. **Nunca se
   guardan rutas ni contenido de archivos.**
-- Al publicar, van dos cosas a tu propio repositorio: el bloque de estadísticas
-  y `.langstats/stats.json`, los minutos sumados por día y lenguaje de los días
-  que se muestran, sin identificadores de ordenador, proyectos ni rutas. Si lo
-  prefieres, guarda ese archivo en un repositorio privado con `data_repo` (ver
-  [Varios ordenadores](#varios-ordenadores)).
+- Al publicar, **a tu repositorio solo va el bloque de estadísticas**: nombres
+  de lenguajes y porcentajes, sin tiempos.
+- Solo si activas `share_data` para sumar varios ordenadores se sube además un
+  archivo pequeño con los minutos sumados por día y lenguaje, sin
+  identificadores de ordenador, proyectos ni rutas, idealmente a un repositorio
+  privado (ver [Varios ordenadores](#varios-ordenadores)).
 - En modo manual, o mientras GitHub no esté conectado, no se envía nada.
 
 ## Solución de problemas
@@ -353,6 +363,7 @@ run doctor
 | "the README has no … markers" | Añade las dos líneas de marcadores donde quieras las estadísticas, o deja que `/langstats:setup` las añada. |
 | El bloque vuelve a cambiar solo | Otra herramienta escribe en la misma sección. Usa otra `section`. |
 | "Python 3.9+ not found" | Instala Python 3.9 o posterior, o define `LANGSTATS_PYTHON` con la ruta de tu intérprete. |
+| Cada ordenador sustituye las estadísticas del otro | Es el comportamiento por defecto. Activa `share_data` en todos los ordenadores para sumarlos (ver [Varios ordenadores](#varios-ordenadores)). |
 | Las estadísticas salen dobles tras reinstalar | Un ordenador que perdió `~/.claude/langstats/` no puede retirar su aportación anterior; desaparece sola cuando esos días salen del rango (7 días por defecto). |
 | La publicación automática no hace nada | Revisa `~/.claude/langstats/publish.log`. Se ejecuta como mucho una vez cada `publish_interval_hours`. |
 
