@@ -1,25 +1,39 @@
 #!/bin/sh
 # langstats launcher (macOS, Linux, Git Bash on Windows).
-# Finds a Python 3.9+ interpreter and runs langstats.py with the given arguments.
-# Set LANGSTATS_PYTHON to force a specific interpreter.
+# Runs langstats.py with a Python 3.9+ interpreter. The interpreter found the
+# first time is cached in $LANGSTATS_HOME/.python so hooks start a single
+# process. Set LANGSTATS_PYTHON to force one.
 # Never fails: hooks must not break the Claude Code session.
 
 DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
-SCRIPT="$DIR/langstats.py"
-CHECK='import sys; sys.exit(0 if sys.version_info >= (3, 9) else 1)'
+SCRIPT="$DIR/cli.py"
+DATA="${LANGSTATS_HOME:-$HOME/.claude/langstats}"
+CACHE="$DATA/.python"
 
 if [ -n "$LANGSTATS_PYTHON" ]; then
-  exec "$LANGSTATS_PYTHON" "$SCRIPT" "$@"
+  exec "$LANGSTATS_PYTHON" -I "$SCRIPT" "$@"
 fi
-if command -v python3 >/dev/null 2>&1 && python3 -c "$CHECK" >/dev/null 2>&1; then
-  exec python3 "$SCRIPT" "$@"
+
+if [ -r "$CACHE" ]; then
+  read -r PY < "$CACHE"
+  if [ -n "$PY" ]; then
+    # shellcheck disable=SC2086 # "py -3" must split into two words
+    $PY -I "$SCRIPT" "$@"
+    rc=$?
+    [ "$rc" -ne 127 ] && exit "$rc"
+  fi
+  rm -f "$CACHE"  # interpreter gone: find another one
 fi
-if command -v python >/dev/null 2>&1 && python -c "$CHECK" >/dev/null 2>&1; then
-  exec python "$SCRIPT" "$@"
-fi
-if command -v py >/dev/null 2>&1 && py -3 -c "$CHECK" >/dev/null 2>&1; then
-  exec py -3 "$SCRIPT" "$@"
-fi
+
+CHECK='import sys; sys.exit(0 if sys.version_info >= (3, 9) else 1)'
+for PY in python3 python "py -3"; do
+  # shellcheck disable=SC2086
+  if command -v ${PY%% *} >/dev/null 2>&1 && $PY -c "$CHECK" >/dev/null 2>&1; then
+    mkdir -p "$DATA" 2>/dev/null && printf '%s\n' "$PY" > "$CACHE" 2>/dev/null
+    # shellcheck disable=SC2086
+    exec $PY -I "$SCRIPT" "$@"
+  fi
+done
 
 echo "langstats: Python 3.9+ not found (tried python3, python, py -3). Set LANGSTATS_PYTHON." >&2
 exit 0

@@ -1,5 +1,5 @@
 {
-  "description": "langstats: record a heartbeat for every file Claude reads or edits",
+  "description": "langstats: record a heartbeat for every file Claude reads or edits (async, never blocks the session)",
   "hooks": {
     "PostToolUse": [
       {
@@ -8,7 +8,8 @@
           {
             "type": "command",
             "command": "sh \"${CLAUDE_PLUGIN_ROOT}/scripts/run\" hook",
-            "timeout": 10
+            "timeout": 10,
+            "async": true
           }
         ]
       }
@@ -19,7 +20,8 @@
           {
             "type": "command",
             "command": "sh \"${CLAUDE_PLUGIN_ROOT}/scripts/run\" session-start",
-            "timeout": 30
+            "timeout": 30,
+            "async": true
           }
         ]
       }
