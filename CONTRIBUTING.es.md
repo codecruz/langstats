@@ -17,6 +17,7 @@ dependencias en tiempo de ejecución**; por favor, mantenlo así.
 | `commands/*.md` | Los comandos `/langstats:*` |
 | `tests/` | Tests con pytest |
 | `tools/release.py` | Prepara una versión (ver [Publicar una versión](#publicar-una-versión)) |
+| `tools/traffic.py` | Historial diario de clones y visitas, guardado en `traffic.csv` en la rama `traffic` por el workflow Traffic |
 
 ## Desarrollo
 

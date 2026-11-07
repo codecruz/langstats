@@ -9,6 +9,8 @@ and the project uses [Semantic Versioning](https://semver.org/).
 ### Added
 - `tools/release.py` prepares a release, and a Release workflow tags it and publishes
   the GitHub release once CI passes on `main`.
+- A daily Traffic workflow keeps the repository's clone and view counts beyond
+  GitHub's 14 days, in `traffic.csv` on the `traffic` branch.
 
 ## [0.4.0] - 2026-11-07
 

@@ -17,6 +17,7 @@ dependencies**; please keep it that way.
 | `commands/*.md` | The `/langstats:*` slash commands |
 | `tests/` | pytest suite |
 | `tools/release.py` | Prepares a release (see [Releasing](#releasing)) |
+| `tools/traffic.py` | Daily history of clones and views, kept in `traffic.csv` on the `traffic` branch by the Traffic workflow |
 
 ## Development
 
