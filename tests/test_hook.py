@@ -110,3 +110,16 @@ def test_hook_unexpected_error_exits_zero(home, run_hook, monkeypatch):
 
     monkeypatch.setattr(langstats, "append_line", boom)
     assert run_hook(payload()) == 0
+
+
+def test_images_and_binaries_are_not_recorded(home, run_hook):
+    for path in ("/work/app/screenshot.png", "/work/app/Doc.PDF", "/work/app/font.woff2", "/work/app/app.apk"):
+        run_hook(payload(tool="Read", path=path))
+    run_hook(payload(tool="Read", path="/work/app/icon.svg"))
+    assert [hb["lang"] for hb in heartbeat_lines(home)] == ["SVG"]
+
+
+def test_override_records_a_skipped_extension(home, run_hook, write_config):
+    write_config(language_overrides={".png": "Images"})
+    run_hook(payload(tool="Read", path="/work/app/shot.png"))
+    assert [hb["lang"] for hb in heartbeat_lines(home)] == ["Images"]
