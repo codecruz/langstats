@@ -38,6 +38,7 @@ Other                           ▓░░░░░░░░░░░░░░░
 - [Performance](#performance)
 - [Privacy](#privacy)
 - [Troubleshooting](#troubleshooting)
+- [Updating](#updating)
 - [Uninstall](#uninstall)
 
 ## Quick start
@@ -492,6 +493,22 @@ run doctor
 | Each computer replaces the other's stats | That is the default. Turn on `share_data` on every computer to add them up (see [Several computers](#several-computers)). |
 | Stats look doubled after reinstalling | A computer that lost `~/.claude/langstats/` cannot remove its old share; it disappears by itself once those days leave the range (7 days by default). |
 | Auto-publish does nothing | Check `~/.claude/langstats/publish.log`. It runs at most once every `publish_interval_hours`. |
+
+## Updating
+
+Claude Code checks for new versions of the plugin, but you can update right away.
+In Claude Code:
+
+```text
+/plugin marketplace update codecruz
+/plugin update langstats@codecruz
+```
+
+Then start a new session, or run `/reload-plugins`. From a terminal, the same is
+`claude plugin marketplace update codecruz` and `claude plugin update langstats@codecruz`.
+
+Your data and configuration in `~/.claude/langstats/` are kept. See what changed in
+each version in the [CHANGELOG](CHANGELOG.md).
 
 ## Uninstall
 
