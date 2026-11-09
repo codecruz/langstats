@@ -1,0 +1,340 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>langstats</title>
+<meta name="description" content="Language stats for Claude Code, published to your GitHub profile README.">
+<meta property="og:title" content="langstats">
+<meta property="og:description" content="Language stats for Claude Code, published to your GitHub profile README.">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://codecruz.github.io/langstats/">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🌸</text></svg>">
+<style>
+  :root {
+    --bg: #fbfaf7;
+    --surface: #ffffff;
+    --text: #1d1c1a;
+    --muted: #63605a;
+    --border: #e4e1da;
+    --accent: #b4446c;
+    --accent-soft: #f6e6ec;
+    --code-bg: #f3f1ec;
+    --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+    --sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #141413;
+      --surface: #1c1b19;
+      --text: #ecebe7;
+      --muted: #a4a19a;
+      --border: #2f2d2a;
+      --accent: #ec8fb0;
+      --accent-soft: #3a2430;
+      --code-bg: #22211e;
+    }
+  }
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font: 16px/1.6 var(--sans);
+  }
+  a { color: var(--accent); }
+  .wrap { max-width: 860px; margin: 0 auto; padding: 0 16px; }
+
+  header.top {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 20px 0; gap: 12px;
+  }
+  .brand { font: 600 18px var(--mono); color: var(--text); text-decoration: none; }
+  .top nav { display: flex; align-items: center; gap: 16px; font-size: 15px; }
+  .top nav a { color: var(--muted); text-decoration: none; }
+  .top nav a:hover { color: var(--text); }
+  .lang-switch {
+    font: inherit; font-size: 14px; color: var(--text); background: var(--surface);
+    border: 1px solid var(--border); border-radius: 999px; padding: 4px 12px; cursor: pointer;
+  }
+
+  .hero { padding: 40px 0 24px; }
+  .hero h1 { font-size: clamp(30px, 6vw, 46px); line-height: 1.15; margin: 0 0 16px; letter-spacing: -0.02em; }
+  .hero p { font-size: 19px; color: var(--muted); margin: 0 0 24px; max-width: 640px; }
+  .cta { display: flex; flex-wrap: wrap; gap: 12px; }
+  .btn {
+    display: inline-block; padding: 10px 18px; border-radius: 8px; text-decoration: none;
+    font-weight: 600; font-size: 15px; border: 1px solid var(--border); color: var(--text); background: var(--surface);
+  }
+  .btn.primary { background: var(--accent); border-color: var(--accent); color: var(--bg); }
+
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; }
+  .demo { margin: 32px 0 8px; overflow: hidden; }
+  .demo-head {
+    display: flex; flex-wrap: wrap; gap: 6px; padding: 12px; border-bottom: 1px solid var(--border);
+  }
+  .style-btn {
+    font: 14px var(--mono); padding: 4px 10px; border-radius: 6px; cursor: pointer;
+    background: transparent; color: var(--muted); border: 1px solid transparent;
+  }
+  .style-btn:hover { color: var(--text); }
+  .style-btn[aria-pressed="true"] { background: var(--accent-soft); color: var(--text); border-color: var(--accent); }
+  pre.block {
+    margin: 0; padding: 20px; overflow-x: auto; font: 14px/1.7 var(--mono); background: var(--code-bg);
+  }
+  .demo-foot { padding: 10px 16px; font-size: 14px; color: var(--muted); border-top: 1px solid var(--border); }
+  .demo-foot code { font-size: 13px; }
+  .note { font-size: 15px; color: var(--muted); margin: 12px 0 0; }
+
+  section { padding: 40px 0 8px; }
+  h2 { font-size: 26px; margin: 0 0 16px; letter-spacing: -0.01em; }
+  .features { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; }
+  .feature { padding: 18px; }
+  .feature h3 { margin: 0 0 6px; font-size: 17px; }
+  .feature p { margin: 0; color: var(--muted); font-size: 15px; }
+
+  ol.steps { list-style: none; padding: 0; margin: 0; counter-reset: step; }
+  ol.steps li { counter-increment: step; position: relative; padding-left: 44px; margin-bottom: 22px; }
+  ol.steps li::before {
+    content: counter(step); position: absolute; left: 0; top: 0;
+    width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center;
+    background: var(--accent-soft); color: var(--accent); font-weight: 700; font-size: 15px;
+  }
+  ol.steps p { margin: 2px 0 8px; }
+  code { font-family: var(--mono); font-size: 0.92em; background: var(--code-bg); padding: 1px 5px; border-radius: 4px; }
+  pre.cmd {
+    margin: 0; padding: 12px 14px; background: var(--code-bg); border-radius: 8px; overflow-x: auto;
+    font: 14px/1.6 var(--mono); border: 1px solid var(--border);
+  }
+  ul.plain { padding-left: 20px; margin: 0; }
+  ul.plain li { margin-bottom: 8px; }
+
+  footer { padding: 48px 0 40px; color: var(--muted); font-size: 14px; border-top: 1px solid var(--border); margin-top: 48px; }
+  footer .wrap { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 12px; }
+
+  @media (max-width: 560px) {
+    .top nav a.hide-sm { display: none; }
+    .hero { padding-top: 16px; }
+    .hero p { font-size: 17px; }
+    pre.block { font-size: 12px; padding: 14px; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <a class="brand" href="./">langstats</a>
+    <nav>
+      <a class="hide-sm" href="#install" data-i18n="nav_install">Install</a>
+      <a class="hide-sm" href="#privacy" data-i18n="nav_privacy">Privacy</a>
+      <a href="https://github.com/codecruz/langstats">GitHub</a>
+      <button class="lang-switch" id="lang-switch" type="button" aria-label="Español">ES</button>
+    </nav>
+  </header>
+
+  <div class="hero">
+    <h1 data-i18n="hero_title">Your languages, from the code Claude writes with you</h1>
+    <p data-i18n="hero_text">langstats is a Claude Code plugin. It records the programming languages Claude reads and edits while it works for you, and turns them into a block of text bars for your GitHub profile README.</p>
+    <div class="cta">
+      <a class="btn primary" href="#install" data-i18n="cta_install">Install it</a>
+      <a class="btn" id="readme-link" href="https://github.com/codecruz/langstats#readme" data-i18n="cta_docs">Read the docs</a>
+    </div>
+  </div>
+
+  <div class="card demo" aria-label="Example stats block">
+    <div class="demo-head" id="styles" role="group"></div>
+    <pre class="block" id="block"></pre>
+    <div class="demo-foot"><span data-i18n="demo_foot">Choose it in Claude Code with</span> <code id="style-cmd">/langstats:style bars</code></div>
+  </div>
+  <p class="note" data-i18n="measures"><strong>What it measures:</strong> the time Claude spends working in each language. It does not measure the time you spend typing in your own editor.</p>
+
+  <section>
+    <h2 data-i18n="features_title">Why langstats</h2>
+    <div class="features">
+      <div class="card feature">
+        <h3 data-i18n="f1_t">Only real code</h3>
+        <p data-i18n="f1_p">Screenshots, PDFs and binaries are never recorded. Data, config and prose formats (Markdown, JSON, YAML…) are left out by default.</p>
+      </div>
+      <div class="card feature">
+        <h3 data-i18n="f2_t">GitHub is optional</h3>
+        <p data-i18n="f2_p">Connected, it updates your README by itself. Not connected, it gives you the block to paste by hand.</p>
+      </div>
+      <div class="card feature">
+        <h3 data-i18n="f3_t">Does not slow Claude down</h3>
+        <p data-i18n="f3_p">The hook is asynchronous, takes about 25 ms, and never touches the network or git.</p>
+      </div>
+      <div class="card feature">
+        <h3 data-i18n="f4_t">Your own style</h3>
+        <p data-i18n="f4_p">Bars, flowers 🌸, rockets 🚀, hearts 💖, moons 🌕 or any symbols you like.</p>
+      </div>
+      <div class="card feature">
+        <h3 data-i18n="f5_t">Several computers</h3>
+        <p data-i18n="f5_p">Turn on sharing and the stats of every computer add up instead of replacing each other.</p>
+      </div>
+      <div class="card feature">
+        <h3 data-i18n="f6_t">Everywhere</h3>
+        <p data-i18n="f6_p">macOS, Linux and Windows. Only Python 3.9 or newer is needed.</p>
+      </div>
+    </div>
+  </section>
+
+  <section id="install">
+    <h2 data-i18n="install_title">Get started</h2>
+    <ol class="steps">
+      <li>
+        <p data-i18n="s1">Install the plugin. In Claude Code:</p>
+        <pre class="cmd">/plugin marketplace add codecruz/langstats
+/plugin install langstats@codecruz</pre>
+        <p class="note" data-i18n="s1_note">Then start a new session, or run <code>/reload-plugins</code>.</p>
+      </li>
+      <li>
+        <p data-i18n="s2">Run the guided setup. It detects whether GitHub is connected and asks a few questions.</p>
+        <pre class="cmd">/langstats:setup</pre>
+      </li>
+      <li>
+        <p data-i18n="s3">Work as usual. Check your stats at any time:</p>
+        <pre class="cmd">/langstats:stats</pre>
+      </li>
+      <li>
+        <p data-i18n="s4">Publish to your README, or let it publish by itself:</p>
+        <pre class="cmd">/langstats:publish</pre>
+      </li>
+    </ol>
+  </section>
+
+  <section id="privacy">
+    <h2 data-i18n="privacy_title">Privacy</h2>
+    <ul class="plain">
+      <li data-i18n="p1">Everything stays on your computer, in <code>~/.claude/langstats/</code>.</li>
+      <li data-i18n="p2">Each record holds the time, the language and the project folder name. <strong>File paths and file contents are never stored.</strong></li>
+      <li data-i18n="p3">When you publish, only the stats block goes to your repository: language names and percentages, no times.</li>
+      <li data-i18n="p4">In manual mode, or while GitHub is not connected, nothing is sent at all.</li>
+    </ul>
+  </section>
+</div>
+
+<footer>
+  <div class="wrap">
+    <span data-i18n="footer_license">MIT license · Made for Claude Code</span>
+    <span><a href="https://github.com/codecruz/langstats">github.com/codecruz/langstats</a></span>
+  </div>
+</footer>
+
+<script>
+(function () {
+  // Same styles and bar algorithm as scripts/langstats.py (BAR_STYLES, make_bar).
+  var STYLES = {
+    bars: ["░", "▒", "▓", "█"],
+    flowers: ["·", "🌱", "🌸"],
+    rocket: ["·", "🚀", "💮"],
+    hearts: ["·", "💗", "💖"],
+    moon: ["🌑", "🌓", "🌕"],
+    stars: ["☆", "★"],
+    dots: ["○", "◐", "●"],
+    squares: ["⬜", "🟩"],
+    ascii: ["-", "=", "#"]
+  };
+  var EMOJI = { flowers: 1, rocket: 1, hearts: 1, moon: 1, squares: 1 };
+  var ROWS = [["Python", 41.62], ["TypeScript", 24.1], ["Go", 14.35], ["PHP", 9.8], ["Rust", 6.03], ["Other", 4.1]];
+
+  function makeBar(percent, length, symbols) {
+    var markers = symbols.length - 1;
+    var proportion = percent / 100 * length;
+    var full = Math.min(Math.floor(proportion + 0.5 / markers), length);
+    var remainder = Math.floor((proportion - full) * markers + 0.5);
+    var partial = remainder > 0 && full < length ? [symbols[remainder]] : [];
+    var empty = length - full - partial.length;
+    return symbols[markers].repeat(full) + partial.join("") + symbols[0].repeat(empty);
+  }
+  function pad(n) { var s = n.toFixed(2); return n < 10 ? "0" + s : s; }
+
+  var current = "bars";
+  function render() {
+    var length = EMOJI[current] ? 15 : 25;
+    var lines = ROWS.map(function (r) {
+      return (r[0] + "            ").slice(0, 12) + makeBar(r[1], length, STYLES[current]) + "   " + pad(r[1]) + " %";
+    });
+    document.getElementById("block").textContent = lines.join("\n");
+    document.getElementById("style-cmd").textContent = "/langstats:style " + current;
+    Array.prototype.forEach.call(document.querySelectorAll(".style-btn"), function (b) {
+      b.setAttribute("aria-pressed", b.dataset.style === current ? "true" : "false");
+    });
+  }
+  var head = document.getElementById("styles");
+  Object.keys(STYLES).forEach(function (name) {
+    var b = document.createElement("button");
+    b.type = "button";
+    b.className = "style-btn";
+    b.dataset.style = name;
+    b.textContent = name;
+    b.addEventListener("click", function () { current = name; render(); });
+    head.appendChild(b);
+  });
+  render();
+
+  var ES = {
+    nav_install: "Instalar",
+    nav_privacy: "Privacidad",
+    hero_title: "Tus lenguajes, a partir del código que Claude escribe contigo",
+    hero_text: "langstats es un plugin de Claude Code. Registra los lenguajes de programación que Claude lee y edita mientras trabaja para ti, y los convierte en un bloque de barras de texto para el README de tu perfil de GitHub.",
+    cta_install: "Instálalo",
+    cta_docs: "Lee la documentación",
+    demo_foot: "Elígelo en Claude Code con",
+    measures: "<strong>Qué mide:</strong> el tiempo que <strong>Claude</strong> pasa trabajando en cada lenguaje. No mide el tiempo que tú pasas escribiendo en tu propio editor.",
+    features_title: "Por qué langstats",
+    f1_t: "Solo código de verdad",
+    f1_p: "Las capturas, los PDF y los binarios nunca se registran. Los formatos de datos, configuración y texto (Markdown, JSON, YAML…) quedan fuera por defecto.",
+    f2_t: "GitHub es opcional",
+    f2_p: "Conectado, actualiza tu README solo. Sin conectar, te da el bloque para pegarlo a mano.",
+    f3_t: "No ralentiza a Claude",
+    f3_p: "El hook es asíncrono, tarda unos 25 ms y nunca usa la red ni git.",
+    f4_t: "Tu propio estilo",
+    f4_p: "Barras, flores 🌸, cohetes 🚀, corazones 💖, lunas 🌕 o los símbolos que quieras.",
+    f5_t: "Varios ordenadores",
+    f5_p: "Activa la compartición y las estadísticas de cada ordenador se suman en lugar de sustituirse.",
+    f6_t: "En todas partes",
+    f6_p: "macOS, Linux y Windows. Solo hace falta Python 3.9 o superior.",
+    install_title: "Empieza",
+    s1: "Instala el plugin. En Claude Code:",
+    s1_note: "Después abre una sesión nueva o ejecuta <code>/reload-plugins</code>.",
+    s2: "Ejecuta la configuración guiada. Detecta si GitHub está conectado y te hace unas pocas preguntas.",
+    s3: "Trabaja como siempre. Consulta tus estadísticas cuando quieras:",
+    s4: "Publica en tu README, o deja que se publique solo:",
+    privacy_title: "Privacidad",
+    p1: "Todo se queda en tu ordenador, en <code>~/.claude/langstats/</code>.",
+    p2: "Cada registro guarda la hora, el lenguaje y el nombre de la carpeta del proyecto. <strong>Nunca se guardan rutas ni contenido de archivos.</strong>",
+    p3: "Al publicar, solo el bloque de estadísticas va a tu repositorio: nombres de lenguajes y porcentajes, sin tiempos.",
+    p4: "En modo manual, o mientras GitHub no está conectado, no se envía nada.",
+    footer_license: "Licencia MIT · Hecho para Claude Code"
+  };
+  var EN = {};
+  Array.prototype.forEach.call(document.querySelectorAll("[data-i18n]"), function (el) {
+    EN[el.dataset.i18n] = el.innerHTML;
+  });
+
+  function setLang(lang) {
+    var dict = lang === "es" ? ES : EN;
+    Array.prototype.forEach.call(document.querySelectorAll("[data-i18n]"), function (el) {
+      el.innerHTML = dict[el.dataset.i18n];
+    });
+    document.documentElement.lang = lang;
+    var sw = document.getElementById("lang-switch");
+    sw.textContent = lang === "es" ? "EN" : "ES";
+    sw.setAttribute("aria-label", lang === "es" ? "English" : "Español");
+    document.getElementById("readme-link").href = lang === "es"
+      ? "https://github.com/codecruz/langstats/blob/main/README.es.md"
+      : "https://github.com/codecruz/langstats#readme";
+    try { localStorage.setItem("langstats-lang", lang); } catch (e) {}
+  }
+  var saved = null;
+  try { saved = localStorage.getItem("langstats-lang"); } catch (e) {}
+  var initial = saved || (/^es\b/i.test(navigator.language || "") ? "es" : "en");
+  if (initial === "es") setLang("es");
+  document.getElementById("lang-switch").addEventListener("click", function () {
+    setLang(document.documentElement.lang === "es" ? "en" : "es");
+  });
+})();
+</script>
+</body>
+</html>
