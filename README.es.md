@@ -1,6 +1,6 @@
 # langstats
 
-[English](README.md) · **Español**
+[English](README.md) · **Español** · [Web](https://codecruz.github.io/langstats/)
 
 Estadísticas de lenguajes para [Claude Code](https://claude.com/claude-code).
 langstats registra en qué lenguajes de programación lee y edita Claude mientras
@@ -8,13 +8,13 @@ trabaja para ti, y los convierte en un bloque para el README de tu perfil de
 GitHub, dibujado con barras de texto:
 
 ```txt
-TypeScript                      ██████░░░░░░░░░░░░░░░░░░░   24.10 %
-PHP                             █████░░░░░░░░░░░░░░░░░░░░   20.04 %
-Python                          ████▒░░░░░░░░░░░░░░░░░░░░   17.90 %
-Markdown                        ███░░░░░░░░░░░░░░░░░░░░░░   12.18 %
-Bash                            ██░░░░░░░░░░░░░░░░░░░░░░░   07.45 %
-JSON                            █▒░░░░░░░░░░░░░░░░░░░░░░░   05.16 %
-Other                           ███▒░░░░░░░░░░░░░░░░░░░░░   13.17 %
+TypeScript                      ████████░░░░░░░░░░░░░░░░░   31.40 %
+PHP                             ██████▒░░░░░░░░░░░░░░░░░░   24.85 %
+Python                          █████▒░░░░░░░░░░░░░░░░░░░   21.30 %
+Bash                            ██▒░░░░░░░░░░░░░░░░░░░░░░   09.15 %
+Go                              █▓░░░░░░░░░░░░░░░░░░░░░░░   06.80 %
+Rust                            █░░░░░░░░░░░░░░░░░░░░░░░░   03.90 %
+Other                           ▓░░░░░░░░░░░░░░░░░░░░░░░░   02.60 %
 ```
 
 > **Qué mide:** el tiempo que **Claude** trabaja en cada lenguaje.
