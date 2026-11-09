@@ -36,6 +36,11 @@ def test_versions_match():
 
 def test_languages_json_shape():
     data = json.loads((ROOT / "scripts" / "languages.json").read_text(encoding="utf-8"))
-    assert set(data) == {"filenames", "prefixes", "suffixes", "extensions", "shebangs"}
+    assert set(data) == {"filenames", "prefixes", "suffixes", "extensions", "shebangs", "non_code", "skip_extensions"}
     for ext in data["extensions"]:
         assert ext.startswith("."), ext
+    for ext in data["skip_extensions"]:
+        assert ext.startswith(".") and ext not in data["extensions"], ext
+    rules = ("filenames", "prefixes", "suffixes", "extensions", "shebangs")
+    names = {lang for key in rules for lang in data[key].values()}
+    assert set(data["non_code"]) <= names, set(data["non_code"]) - names

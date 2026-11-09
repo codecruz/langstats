@@ -416,7 +416,8 @@ válido nunca rompe nada: se avisa y se usa el valor por defecto.
 | `show_title` | `false` | Añade una línea de fechas "From … To …" encima del bloque |
 | `timeout_minutes` | `15` | Los huecos entre dos registros más largos que esto no cuentan (es una pausa) |
 | `track_reads` | `true` | Cuenta los archivos que Claude lee, no solo los que edita |
-| `exclude_languages` | `[]` | Lenguajes que se dejan fuera del todo, por ejemplo `["Markdown", "JSON"]` |
+| `exclude_languages` | `[]` | Lenguajes que se dejan fuera del todo, por ejemplo `["HTML", "CSS"]` |
+| `count_non_code` | `false` | Cuenta también los formatos de datos, configuración y texto (Markdown, JSON, YAML, TOML, XML...) y los archivos no reconocidos. La lista es `non_code` en `scripts/languages.json` |
 | `language_overrides` | `{}` | Tus propias asociaciones, por ejemplo `{".tpl": "Smarty"}` |
 | `ignore_globs` | `.claude`, `node_modules`, `.git`, `vendor`, `dist`, `.venv` | Carpetas o patrones que nunca se registran |
 | `auto_publish` | `false` | Publica al cerrar una sesión |
@@ -434,7 +435,10 @@ sitio que no sea `~/.claude/langstats`.
 
 1. Cada vez que Claude lee o edita un archivo (`Read`, `Edit`, `Write`,
    `MultiEdit`, `NotebookEdit`), langstats escribe un registro: la hora, el
-   lenguaje y el nombre de la carpeta del proyecto.
+   lenguaje y el nombre de la carpeta del proyecto. Imágenes, PDF, fuentes,
+   audio, vídeo y binarios (`skip_extensions` en `languages.json`) no son código,
+   así que no se registran; una entrada en `language_overrides` para alguno de
+   ellos vuelve a contarlo.
 2. El lenguaje se detecta por el nombre del archivo: primero nombres exactos
    (`Dockerfile`, `Makefile`), luego terminaciones compuestas (`.blade.php`),
    luego la extensión y, para scripts sin extensión, la línea `#!`. Las reglas

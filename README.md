@@ -414,7 +414,8 @@ value never breaks anything; it is reported and the default is used.
 | `show_title` | `false` | Add a "From … To …" date line above the block |
 | `timeout_minutes` | `15` | Gaps longer than this between two records are not counted (a pause) |
 | `track_reads` | `true` | Count files Claude reads, not only the ones it edits |
-| `exclude_languages` | `[]` | Languages left out entirely, e.g. `["Markdown", "JSON"]` |
+| `exclude_languages` | `[]` | Languages left out entirely, e.g. `["HTML", "CSS"]` |
+| `count_non_code` | `false` | Also count data, config and prose formats (Markdown, JSON, YAML, TOML, XML...) and unrecognized files. The list is `non_code` in `scripts/languages.json` |
 | `language_overrides` | `{}` | Your own mappings, e.g. `{".tpl": "Smarty"}` |
 | `ignore_globs` | `.claude`, `node_modules`, `.git`, `vendor`, `dist`, `.venv` | Folders or patterns that are never recorded |
 | `auto_publish` | `false` | Publish when a session ends |
@@ -432,7 +433,9 @@ Set the environment variable `LANGSTATS_HOME` to store data somewhere other than
 
 1. Each time Claude reads or edits a file (`Read`, `Edit`, `Write`, `MultiEdit`,
    `NotebookEdit`), langstats writes a record: the time, the language and the
-   project folder name.
+   project folder name. Images, PDFs, fonts, media and binaries (`skip_extensions`
+   in `languages.json`) are not code, so they are not recorded; a
+   `language_overrides` entry for one of them turns it back on.
 2. The language is detected from the file name: exact names first (`Dockerfile`,
    `Makefile`), then compound endings (`.blade.php`), then the extension, then
    the `#!` line for scripts without extension. The rules are in

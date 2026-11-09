@@ -45,6 +45,7 @@ TYPE_CHECKING = False  # avoids importing typing on the hook path
 
 if TYPE_CHECKING:  # pragma: no cover
     import argparse
+    from collections.abc import Iterable
     from typing import Any, Callable
 
 # argparse, base64, shutil and subprocess are imported lazily where needed so
@@ -96,6 +97,7 @@ DEFAULTS: dict[str, Any] = {
     "timeout_minutes": 15,
     "track_reads": True,
     "exclude_languages": [],
+    "count_non_code": False,
     "language_overrides": {},
     "ignore_globs": [".claude", "node_modules", ".git", "vendor", "dist", ".venv"],
     "auto_publish": False,
@@ -167,6 +169,7 @@ SCHEMA: dict[str, tuple[str, Callable[[Any], bool], str]] = {
     "timeout_minutes": ("num", lambda v: _is_num(v) and v > 0, "a number > 0"),
     "track_reads": ("bool", lambda v: isinstance(v, bool), "true or false"),
     "exclude_languages": ("list", _str_list, "a list of language names"),
+    "count_non_code": ("bool", lambda v: isinstance(v, bool), "true or false"),
     "language_overrides": (
         "dict",
         lambda v: isinstance(v, dict) and all(isinstance(k, str) and _nonempty_str(x) for k, x in v.items()),
@@ -455,6 +458,30 @@ def detect_language(path: str, overrides: dict[str, str] | None = None, language
     return _shebang_language(path, langs.get("shebangs", {})) or OTHER
 
 
+def is_skipped(path: str, overrides: dict[str, str] | None = None, languages: dict[str, Any] | None = None) -> bool:
+    """Images, PDFs, fonts, media and binaries are not code: opening a screenshot
+    should not count as time in "Other". An override for the name or extension wins."""
+    langs = languages or load_languages()
+    name = basename(path)
+    ext = _extension(name).lower()
+    if not ext or ext not in {e.lower() for e in langs.get("skip_extensions", [])}:
+        return False
+    for key in overrides or {}:
+        if key == name or (key if key.startswith(".") else "." + key).lower() == ext:
+            return False
+    return True
+
+
+def excluded_languages(cfg: dict[str, Any], languages: dict[str, Any] | None = None) -> set[str]:
+    """Languages left out of the stats: the user's exclude_languages plus, unless
+    count_non_code is on, data, config and prose formats and unrecognized files."""
+    excluded = set(cfg["exclude_languages"])
+    if not cfg["count_non_code"]:
+        excluded |= set((languages or load_languages()).get("non_code", []))
+        excluded.add(OTHER)
+    return excluded
+
+
 def is_ignored(path: str, globs: list[str]) -> bool:
     norm = path.replace("\\", "/")
     parts = [p for p in norm.split("/") if p]
@@ -511,7 +538,7 @@ def build_heartbeat(payload: dict[str, Any], cfg: dict[str, Any], now: float | N
     cwd = payload.get("cwd") if isinstance(payload.get("cwd"), str) else os.getcwd()
     if not os.path.isabs(path):
         path = os.path.join(cwd, path)
-    if is_ignored(path, cfg["ignore_globs"]):
+    if is_ignored(path, cfg["ignore_globs"]) or is_skipped(path, cfg["language_overrides"]):
         return None
     return {
         "v": SCHEMA_VERSION,
@@ -568,7 +595,7 @@ def read_heartbeats(home: Path, range_days: int, today: dt.date | None = None) -
 def aggregate(
     heartbeats: list[dict[str, Any]],
     timeout_minutes: float,
-    exclude: list[str] | None = None,
+    exclude: Iterable[str] | None = None,
     key: str = "lang",
 ) -> dict[str, float]:
     """Seconds per language. All sessions share one timeline, so parallel
@@ -666,7 +693,7 @@ def date_range(range_days: int, heartbeats: list[dict[str, Any]], today: dt.date
 
 def render_totals(totals: dict[str, float], cfg: dict[str, Any], start: dt.date, end: dt.date) -> str | None:
     """The text that goes inside ```txt for the README, or None without data."""
-    excluded = set(cfg["exclude_languages"])
+    excluded = excluded_languages(cfg)
     totals = {lang: secs for lang, secs in totals.items() if lang not in excluded}
     rows = summarize(totals, cfg["top_n"], cfg["min_percent"])
     if not rows:
@@ -685,7 +712,7 @@ def render_block(home: Path, cfg: dict[str, Any], today: dt.date | None = None) 
     """The block from this computer's data only (manual mode, previews)."""
     today = today or dt.date.today()
     beats = read_heartbeats(home, cfg["range_days"], today)
-    totals = aggregate(beats, cfg["timeout_minutes"], cfg["exclude_languages"])
+    totals = aggregate(beats, cfg["timeout_minutes"], excluded_languages(cfg))
     start, end = date_range(cfg["range_days"], beats, today)
     return render_totals(totals, cfg, start, end)
 
@@ -1330,7 +1357,7 @@ def cmd_stats(args: argparse.Namespace) -> int:
     beats = read_heartbeats(home, days, today)
     if args.project:
         beats = [hb for hb in beats if hb.get("project") == args.project]
-    totals = aggregate(beats, cfg["timeout_minutes"], cfg["exclude_languages"])
+    totals = aggregate(beats, cfg["timeout_minutes"], excluded_languages(cfg))
     rows = summarize(totals, cfg["top_n"], cfg["min_percent"])
     start, end = date_range(days, beats, today)
     label = "all time" if days == 0 else "last %d day%s" % (days, "" if days == 1 else "s")
@@ -1343,7 +1370,7 @@ def cmd_stats(args: argparse.Namespace) -> int:
     for line in render_rows(rows, cfg, show_time=True):
         print(line)
     if not args.project:
-        projects = summarize(aggregate(beats, cfg["timeout_minutes"], cfg["exclude_languages"], key="project"), 6, 0)
+        projects = summarize(aggregate(beats, cfg["timeout_minutes"], excluded_languages(cfg), key="project"), 6, 0)
         if projects:
             print()
             print("Projects: " + ", ".join("%s %s" % (n, format_duration(s)) for n, s, _ in projects))
@@ -1386,7 +1413,7 @@ def _style_label(blocks: Any) -> str:
 def _style_preview(home: Path, cfg: dict[str, Any]) -> list[str]:
     """The user's own top languages when there is data, else an example."""
     beats = read_heartbeats(home, cfg["range_days"])
-    rows = summarize(aggregate(beats, cfg["timeout_minutes"], cfg["exclude_languages"]), 3, cfg["min_percent"])
+    rows = summarize(aggregate(beats, cfg["timeout_minutes"], excluded_languages(cfg)), 3, cfg["min_percent"])
     if not rows:
         rows = [("Python", 0, 45.0), ("TypeScript", 0, 30.0), ("Other", 0, 25.0)]
     return render_rows(rows, dict(cfg, show_time=False))
