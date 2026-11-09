@@ -25,6 +25,8 @@ import langstats
         ("/a/analysis.R", "R"),
         ("/a/file.unknownext", "Other"),
         ("/a/LICENSE", "Other"),
+        ("/a/gradle.properties", "Properties"),
+        ("/a/manifest.webmanifest", "JSON"),
     ],
 )
 def test_detect(path, lang):

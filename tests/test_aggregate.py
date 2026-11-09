@@ -68,3 +68,15 @@ def test_summarize_no_other_row_when_empty():
 
 def test_summarize_empty():
     assert langstats.summarize({}, 7, 0.5) == []
+
+
+def test_non_code_and_other_left_out_by_default():
+    cfg = dict(langstats.DEFAULTS)
+    excluded = langstats.excluded_languages(cfg)
+    assert {"Markdown", "JSON", "YAML", "Other"} <= excluded
+    assert not {"Python", "JavaScript", "HTML", "CSS", "Shell", "SQL"} & excluded
+
+
+def test_count_non_code_keeps_only_user_exclusions():
+    cfg = dict(langstats.DEFAULTS, count_non_code=True, exclude_languages=["Go"])
+    assert langstats.excluded_languages(cfg) == {"Go"}
