@@ -6,6 +6,8 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-11-09
+
 ### Changed
 - Images, PDFs, fonts, media and binaries are no longer recorded: reading a
   screenshot counted as time in `Other`. The list is `skip_extensions` in
@@ -17,6 +19,7 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ### Added
 - `.properties` files are detected as Properties and `.webmanifest` as JSON.
+- A website at https://codecruz.github.io/langstats/ and an *Updating* section in the README.
 - `tools/release.py` prepares a release, and a Release workflow tags it and publishes
   the GitHub release once CI passes on `main`.
 
@@ -93,7 +96,8 @@ First public release, renamed from the personal prototype `langtime` (v0.1.0).
 - `~/.claude/langtime/` is copied to `~/.claude/langstats/` once, on first run,
   when the destination does not exist yet.
 
-[Unreleased]: https://github.com/codecruz/langstats/compare/v0.4.0...HEAD
+[Unreleased]: https://github.com/codecruz/langstats/compare/v0.5.0...HEAD
+[0.5.0]: https://github.com/codecruz/langstats/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/codecruz/langstats/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/codecruz/langstats/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/codecruz/langstats/releases/tag/v0.2.0
