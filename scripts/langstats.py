@@ -45,7 +45,8 @@ TYPE_CHECKING = False  # avoids importing typing on the hook path
 
 if TYPE_CHECKING:  # pragma: no cover
     import argparse
-    from typing import Any, Callable, Iterable
+    from collections.abc import Iterable
+    from typing import Any, Callable
 
 # argparse, base64, shutil and subprocess are imported lazily where needed so
 # the PostToolUse hook stays fast.
