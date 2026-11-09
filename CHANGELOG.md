@@ -6,7 +6,17 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed
+- Images, PDFs, fonts, media and binaries are no longer recorded: reading a
+  screenshot counted as time in `Other`. The list is `skip_extensions` in
+  `scripts/languages.json`; a `language_overrides` entry for one of them still counts it.
+- Only programming languages count by default: data, config and prose formats
+  (Markdown, JSON, YAML, TOML, XML, CSV, INI, SVG...) and unrecognized files (`Other`)
+  are left out, also from data already recorded. Set `count_non_code` to `true` to
+  count them again; the list is `non_code` in `scripts/languages.json`.
+
 ### Added
+- `.properties` files are detected as Properties and `.webmanifest` as JSON.
 - `tools/release.py` prepares a release, and a Release workflow tags it and publishes
   the GitHub release once CI passes on `main`.
 
