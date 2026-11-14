@@ -17,6 +17,7 @@ dependencias en tiempo de ejecución**; por favor, mantenlo así.
 | `commands/*.md` | Los comandos `/langstats:*` |
 | `tests/` | Tests con pytest |
 | `tools/release.py` | Prepara una versión (ver [Publicar una versión](#publicar-una-versión)) |
+| `tools/make_assets.py` | Regenera las imágenes para compartir y los iconos de `docs/assets/` (necesita Chrome y Pillow) |
 
 ## Desarrollo
 
