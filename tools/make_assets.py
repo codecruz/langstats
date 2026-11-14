@@ -117,10 +117,19 @@ def render(chrome: str, page: str, out: Path, width: int, height: int, tmp: Path
     src = tmp / (out.stem + ".html")
     src.write_text(page, encoding="utf-8")
     subprocess.run(
-        [chrome, "--headless=new", "--disable-gpu", "--hide-scrollbars", "--force-device-scale-factor=1",
-         "--default-background-color=00000000", f"--window-size={width},{height}",
-         f"--screenshot={out}", src.as_uri()],
-        check=True, capture_output=True,
+        [
+            chrome,
+            "--headless=new",
+            "--disable-gpu",
+            "--hide-scrollbars",
+            "--force-device-scale-factor=1",
+            "--default-background-color=00000000",
+            f"--window-size={width},{height}",
+            f"--screenshot={out}",
+            src.as_uri(),
+        ],
+        check=True,
+        capture_output=True,
     )
 
 
