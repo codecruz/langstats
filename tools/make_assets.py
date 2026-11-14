@@ -78,8 +78,8 @@ def card_page(width: int, height: int, square: bool) -> str:
   .brand svg {{ width: 44px; height: 44px; }}
   h1 {{ font-size: {title_px}px; line-height: 1.12; letter-spacing: -0.02em; font-weight: 700; }}
   p {{ font-size: {sub_px}px; line-height: 1.45; color: {MUTED}; margin-top: 22px; }}
-  .card {{ flex: {"none" if square else "1"}; background: {SURFACE}; border: 1px solid {BORDER}; border-radius: 18px; overflow: hidden;
-          box-shadow: 0 18px 40px -24px rgba(29, 28, 26, .35); }}
+  .card {{ flex: {"none" if square else "1"}; background: {SURFACE}; border: 1px solid {BORDER};
+          border-radius: 18px; overflow: hidden; box-shadow: 0 18px 40px -24px rgba(29, 28, 26, .35); }}
   .head {{ display: flex; gap: 8px; padding: 14px 18px; border-bottom: 1px solid {BORDER}; }}
   .head i {{ width: 12px; height: 12px; border-radius: 50%; background: {BORDER}; }}
   pre {{ font: {code_px}px/1.75 {MONO}; padding: 24px 26px; background: {CODE_BG}; white-space: pre; }}
