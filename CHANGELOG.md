@@ -6,6 +6,11 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed
+- The install instructions use the shared marketplace,
+  `codecruz/claude-plugins`. This repository still works as a marketplace,
+  so existing installs keep updating, and it now lists `annotate` too.
+
 ## [0.5.0] - 2026-11-09
 
 ### Changed

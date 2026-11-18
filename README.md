@@ -46,7 +46,7 @@ Other                           ▓░░░░░░░░░░░░░░░
 **1. Install the plugin.** In Claude Code:
 
 ```text
-/plugin marketplace add codecruz/langstats
+/plugin marketplace add codecruz/claude-plugins
 /plugin install langstats@codecruz
 ```
 
